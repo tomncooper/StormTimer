@@ -1,7 +1,7 @@
 import logging
 import json
 
-from typing import List
+from typing import List, Dict, Union
 from configparser import ConfigParser
 from argparse import ArgumentParser, Namespace
 
@@ -18,8 +18,37 @@ from common import create_parser, setup_logging
 
 LOG: logging.Logger = logging.getLogger("stormtimer.receiver")
 
+METRIC = Dict[str, Union[str, Dict[str, Union[str, int]]]]
 
-def run(kafka_consumer: Consumer):
+
+def process_payload(payload: str, ts_value: int) -> METRIC:
+
+    path_message = json.loads(payload)
+
+    diff: int = ts_value - path_message["originTimestamp"]
+
+    LOG.debug(
+        "Received message: %s at time: %d with time delta %d ms",
+        payload,
+        ts_value,
+        diff,
+    )
+
+    path: List[str] = path_message["path"]
+    spout_comp: str
+    spout_task: str
+    spout_comp, spout_task = path[0].split(":")
+
+    metric: METRIC = {
+        "measurement": "measured-e2e-latency",
+        "tags": {"spout_component": spout_comp, "spout_task": int(spout_task)},
+        "fields": {"value": diff},
+    }
+
+    return metric
+
+
+def run(kafka_consumer: Consumer, influx_client: InfluxDBClient) -> None:
 
     while True:
         msg: Message = kafka_consumer.poll(1.0)
@@ -42,16 +71,15 @@ def run(kafka_consumer: Consumer):
                 continue
 
             payload = msg.value().decode("utf-8")
-            path_message = json.loads(payload)
 
-            diff: int = ts_value - path_message["originTimestamp"]
+            metric: METRIC = process_payload(payload, ts_value)
 
-            LOG.debug(
-                "Received message: %s at time: %d with time delta %d ms",
-                payload,
-                ts_value,
-                diff,
-            )
+            sent: bool = influx_client.write_points([metric])
+
+            if not sent:
+                LOG.error("Failed to send metric to InfluxDB")
+            else:
+                LOG.debug("Metric: %s sent to influx", metric)
 
 
 if __name__ == "__main__":
@@ -76,16 +104,26 @@ if __name__ == "__main__":
         logger=ST_LOG,
     )
 
+    INFLUX_CLIENT: InfluxDBClient = InfluxDBClient(
+        host=CONFIG["influx"]["server"],
+        port=8086,
+        username=CONFIG["influx"]["user"],
+        password=CONFIG["influx"]["password"],
+        database=CONFIG["influx"]["database"],
+    )
+
     topic_list: List[str] = [CONFIG["consumer"]["topic"]]
 
     KAF_CON.subscribe(topic_list)
 
     try:
         LOG.info("Processing messages from topics: %s", str(topic_list))
-        run(KAF_CON)
+        run(KAF_CON, INFLUX_CLIENT)
     except KeyboardInterrupt:
         LOG.info("Keyboard interrupt signal receive. Closing connection")
         KAF_CON.close()
+        INFLUX_CLIENT.close()
     except SystemExit:
         LOG.info("System exit signal received. Closing connection")
         KAF_CON.close()
+        INFLUX_CLIENT.close()

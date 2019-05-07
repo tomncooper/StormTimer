@@ -1,5 +1,11 @@
 [kafka]
-server = tncbroker.ukwest.cloudapp.azure.com:9092
+server = kafka-server:9092
+
+[influx]
+server = localhost
+user = user
+password = password
+database = metrics
 
 [consumer]
 group = rec_group_1
