@@ -14,7 +14,7 @@ from confluent_kafka import (
 
 from influxdb import InfluxDBClient
 
-from common import create_parser, setup_logging
+from common import create_parser, setup_single_logging
 
 LOG: logging.Logger = logging.getLogger("stormtimer.receiver")
 
@@ -42,7 +42,7 @@ def process_payload(payload: str, ts_value: int) -> METRIC:
     metric: METRIC = {
         "measurement": "measured-e2e-latency",
         "tags": {"spout_component": spout_comp, "spout_task": int(spout_task)},
-        "fields": {"value": diff},
+        "fields": {"value": diff, "path": ">".join(path)},
     }
 
     return metric
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     PARSER: ArgumentParser = create_parser()
     ARGS: Namespace = PARSER.parse_args()
 
-    ST_LOG: logging.Logger = setup_logging(ARGS.debug)
+    ST_LOG: logging.Logger = setup_single_logging(ARGS.debug)
 
     CONFIG: ConfigParser = ConfigParser()
     CONFIG.read(ARGS.config)

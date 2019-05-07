@@ -6,6 +6,5 @@ mvn package -Dtopology.class=TimerTopologyRunner
 
 storm jar target/topology-0.0.1-SNAPSHOT-jar-with-dependencies.jar \
     uk.org.tomcooper.stormtimer.topology.TimerTopologyRunner \
-    local \
-    TimerLocal \
-    120000
+    remote \
+    StormTimer

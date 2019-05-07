@@ -31,6 +31,8 @@ public class TimerSpout implements IRichSpout {
 		props.setProperty("bootstrap.servers", kafkaServer);
 		props.setProperty("group.id", groupID);
 		props.setProperty("enable.auto.commit", "false");
+		props.setProperty("auto.offset.reset", "latest");
+		props.setProperty("max.poll.records", "1");
 		props.setProperty("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
 		props.setProperty("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
 

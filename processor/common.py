@@ -1,7 +1,6 @@
-import logging
-
+from sys import stdout
+from logging import Logger, getLogger, DEBUG, INFO, Formatter, StreamHandler
 from argparse import ArgumentParser
-from typing import Dict, Union
 
 
 def create_parser() -> ArgumentParser:
@@ -20,12 +19,12 @@ def create_parser() -> ArgumentParser:
     return parser
 
 
-def setup_logging(debug: bool = False) -> logging.Logger:
+def setup_single_logging(debug: bool = False) -> Logger:
 
-    top_log: logging.Logger = logging.getLogger("stormtimer")
+    top_log: Logger = getLogger("stormtimer")
 
     if debug:
-        level = logging.DEBUG
+        level = DEBUG
         fmt: str = (
             "{levelname} | {name} | "
             "function: {funcName} "
@@ -34,12 +33,12 @@ def setup_logging(debug: bool = False) -> logging.Logger:
 
         style: str = "{"
     else:
-        level = logging.INFO
+        level = INFO
         fmt = "{asctime} | {name} | {levelname} " "| {message}"
         style = "{"
 
-    formatter: logging.Formatter = logging.Formatter(fmt=fmt, style=style)
-    handler: logging.StreamHandler = logging.StreamHandler()
+    formatter: Formatter = Formatter(fmt=fmt, style=style)
+    handler: StreamHandler = StreamHandler(stream=stdout)
     handler.setFormatter(formatter)
 
     top_log.setLevel(level)
