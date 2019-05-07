@@ -24,6 +24,7 @@ public class TimerSpout implements IRichSpout {
 	private Properties kafkaProperties;
 	private List<String> topics;
 	private int taskID;
+	private String name;
 
 	public TimerSpout(String kafkaServer, String groupID, String topic) {
 		Properties props = new Properties();
@@ -43,6 +44,7 @@ public class TimerSpout implements IRichSpout {
 
 		this.collector = collector;
 		taskID = context.getThisTaskId();
+		name = context.getComponentId(taskID);
 
 	}
 
@@ -63,14 +65,14 @@ public class TimerSpout implements IRichSpout {
 
 	public void nextTuple() {
 
-		ConsumerRecords<String, String> records = kafkaConsumer.poll(Duration.ofMillis(100));
+		ConsumerRecords<String, String> records = kafkaConsumer.poll(Duration.ofMillis(1));
 
 		for (ConsumerRecord<String, String> record : records) {
 
 			String uuid = record.value();
 			long messageTimestamp = record.timestamp();
-
-			Values outputTuple = new Values(System.currentTimeMillis(), uuid, messageTimestamp, taskID);
+			String path = name + ":" + taskID;
+			Values outputTuple = new Values(System.currentTimeMillis(), uuid, messageTimestamp, path);
 
 			collector.emit("kafkaMessages", outputTuple, uuid);
 
@@ -89,7 +91,7 @@ public class TimerSpout implements IRichSpout {
 	}
 
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		declarer.declareStream("kafkaMessages", new Fields("timestamp", "uuid", "messageTimestamp", "taskID"));
+		declarer.declareStream("kafkaMessages", new Fields("timestamp", "uuid", "messageTimestamp", "path"));
 	}
 
 	public Map<String, Object> getComponentConfiguration() {

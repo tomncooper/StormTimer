@@ -10,6 +10,7 @@ mypy = "*"
 
 [packages]
 confluent-kafka = "*"
+influxdb = "*"
 
 [requires]
 python_version = "3.7"

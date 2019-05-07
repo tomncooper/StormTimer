@@ -17,9 +17,7 @@ public class PrinterBolt implements IRichBolt{
 
 	public void execute(Tuple input) {
 		
-		System.out.println("Spout Task: " + input.getIntegerByField("taskID") +
-					       " ID: " + input.getStringByField("uuid") + 
-					       " Timestamp: " + input.getLongByField("messageTimestamp"));
+		System.out.println("Message: " + input.getStringByField("pathMessage"));
 		collector.ack(input);
 		
 	}

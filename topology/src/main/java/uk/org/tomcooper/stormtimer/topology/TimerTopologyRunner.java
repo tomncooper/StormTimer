@@ -16,11 +16,16 @@ public class TimerTopologyRunner {
 
 		String kafkaServer = "tncbroker.ukwest.cloudapp.azure.com:9092";
 		String groupID = "spout_group";
-		String topic = "beforeStorm";
+		String incomingTopic = "beforeStorm";
+		String outgoingTopic = "afterStorm";
 
 		String spoutName = "TimerSpout";
-		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, topic), 1).setNumTasks(1);
-		builder.setBolt("Printer", new PrinterBolt(), 1).setMaxTaskParallelism(1).shuffleGrouping(spoutName, "kafkaMessages");
+		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic), 1).setNumTasks(1);
+		String pathBoltName = "PathBolt";
+		builder.setBolt(pathBoltName, new PathBolt(), 1).setMaxTaskParallelism(1).shuffleGrouping(spoutName, "kafkaMessages");
+		String senderBoltName = "SenderBolt";
+		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic)).setMaxTaskParallelism(1)
+			.shuffleGrouping(pathBoltName, "pathMessages");
 
 		StormTopology topology = builder.createTopology();
 

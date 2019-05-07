@@ -1,4 +1,5 @@
 import logging
+import json
 
 from typing import List
 from configparser import ConfigParser
@@ -10,6 +11,8 @@ from confluent_kafka import (
     TIMESTAMP_LOG_APPEND_TIME,
     TIMESTAMP_NOT_AVAILABLE,
 )
+
+from influxdb import InfluxDBClient
 
 from common import create_parser, setup_logging
 
@@ -27,18 +30,28 @@ def run(kafka_consumer: Consumer):
             LOG.error("Kafka Consumer error: %s", msg.error())
             continue
         else:
-
+            ts_type: int
+            ts_value: int
             ts_type, ts_value = msg.timestamp()
 
             if ts_type == TIMESTAMP_NOT_AVAILABLE:
                 LOG.error("No time stamp available")
                 continue
             elif ts_type != TIMESTAMP_LOG_APPEND_TIME:
-                LOG.warning("Time stamp is not log append time")
+                LOG.error("Time stamp is not log append time")
+                continue
 
             payload = msg.value().decode("utf-8")
+            path_message = json.loads(payload)
 
-            LOG.debug("Received message: %s ts_value: %s", payload, str(ts_value))
+            diff: int = ts_value - path_message["originTimestamp"]
+
+            LOG.debug(
+                "Received message: %s at time: %d with time delta %d ms",
+                payload,
+                ts_value,
+                diff,
+            )
 
 
 if __name__ == "__main__":

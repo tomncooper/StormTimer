@@ -1,0 +1,10 @@
+[kafka]
+server = tncbroker.ukwest.cloudapp.azure.com:9092
+
+[consumer]
+group = rec_group_1
+topic = afterStorm
+
+[producer]
+topic = beforeStorm
+
