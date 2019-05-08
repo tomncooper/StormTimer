@@ -10,9 +10,9 @@ import org.apache.storm.generated.InvalidTopologyException;
 import org.apache.storm.generated.StormTopology;
 import org.apache.storm.topology.TopologyBuilder;
 
-public class TimerTopologyRunner {
+public class BasicTimerTopologyRunner {
 
-	private static Config createConf(boolean debug, int numWorkers, int maxTaskPar) {
+	static Config createConf(boolean debug, int numWorkers, int maxTaskPar) {
 
 		Config conf = new Config();
 		conf.setDebug(debug);

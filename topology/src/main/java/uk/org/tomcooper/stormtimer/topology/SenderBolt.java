@@ -63,6 +63,8 @@ public class SenderBolt implements IRichBolt {
 		PathMessage pathMsg = gson.fromJson(input.getStringByField("pathMessage"), PathMessage.class);
 		String newPathElement = name + ":" + taskID;
 		pathMsg.addPathElement(newPathElement);
+		pathMsg.setExitTimestamp(System.currentTimeMillis());
+		
 		String pathMessage = gson.toJson(pathMsg);
 
 		ProducerRecord<String, String> record = new ProducerRecord<String, String>(topic, pathMessage);

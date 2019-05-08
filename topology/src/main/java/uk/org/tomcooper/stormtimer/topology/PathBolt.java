@@ -17,11 +17,11 @@ import uk.org.tomcooper.tracer.metrics.TracerMetricManager;
 
 public class PathBolt implements IRichBolt {
 
-	private OutputCollector collector;
-	private TracerMetricManager tracer;
-	private CPULatencyTimer cpuTimer;
-	private int taskID;
-	private String name;
+	protected OutputCollector collector;
+	protected TracerMetricManager tracer;
+	protected CPULatencyTimer cpuTimer;
+	protected int taskID;
+	protected String name;
 
 	@Override
 	public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
@@ -31,25 +31,33 @@ public class PathBolt implements IRichBolt {
 		taskID = context.getThisTaskId();
 		name = context.getComponentId(taskID);
 	}
+	
+	protected String createPathMessage(Tuple input) {
+		String path1 = input.getStringByField("path");
+		String path2 = name + ":" + taskID;
+		String[] path = { path1, path2 };
+		String messageID = input.getStringByField("uuid");
+		long originTimestamp = input.getLongByField("messageTimestamp");
+		long entryTimestamp = input.getLongByField("entryTimestamp");
+
+		PathMessage pathMsg = new PathMessage();
+		pathMsg.setMessageID(messageID);
+		pathMsg.setOriginTimestamp(originTimestamp);
+		pathMsg.setPath(path);
+		pathMsg.setEntryTimestamp(entryTimestamp);
+		
+		Gson gson = new Gson();
+		String pathMessage = gson.toJson(pathMsg);
+
+		return pathMessage;
+	}
 
 	@Override
 	public void execute(Tuple input) {
 		cpuTimer.startTimer(Thread.currentThread().getId());
 		tracer.addTransfer(input, System.currentTimeMillis() - input.getLongByField("timestamp"));
 
-		String path1 = input.getStringByField("path");
-		String path2 = name + ":" + taskID;
-		String[] path = { path1, path2 };
-		String messageID = input.getStringByField("uuid");
-		long originTimestamp = input.getLongByField("messageTimestamp");
-
-		PathMessage pathMsg = new PathMessage();
-		pathMsg.setMessageID(messageID);
-		pathMsg.setOriginTimestamp(originTimestamp);
-		pathMsg.setPath(path);
-
-		Gson gson = new Gson();
-		String pathMessage = gson.toJson(pathMsg);
+		String pathMessage = createPathMessage(input);
 
 		Values outputTuple = new Values(System.currentTimeMillis(), pathMessage);
 

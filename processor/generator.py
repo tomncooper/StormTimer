@@ -73,14 +73,22 @@ class MessageGenerator(Process):
             if self.emission_delay:
                 time.sleep(self.emission_delay)
 
-        producer.flush()
+        LOG.info(
+            "Generator: %s received stop signal, flushing remaining messages", self.name
+        )
+        remaining: int = producer.flush(10)
+        LOG.info(
+            "Generator: %s stopped flushing with %d messages remaining in buffer",
+            self.name,
+            remaining,
+        )
 
 
 def setup_multi_logging(
     queue: Queue, debug: bool = False
-) -> Tuple[logging.Logger, logging.Formatter]:
+) -> Tuple[logging.Logger, QueueListener]:
 
-    top_log: logging.Logger = logging.getLogger("stormtimer.generator")
+    top_log: logging.Logger = logging.getLogger("stormtimer")
 
     if debug:
         level = logging.DEBUG
@@ -96,15 +104,17 @@ def setup_multi_logging(
         fmt = "{asctime} | {name} | {levelname} " "| {message}"
         style = "{"
 
-    formatter: logging.Formatter = logging.Formatter(fmt=fmt, style=style)
-
     queue_handler: QueueHandler = QueueHandler(queue)
-    queue_handler.setFormatter(formatter)
-
     top_log.addHandler(queue_handler)
     top_log.setLevel(level)
 
-    return top_log, deepcopy(formatter)
+    formatter: logging.Formatter = logging.Formatter(fmt=fmt, style=style)
+    console: logging.StreamHandler = logging.StreamHandler(stream=stdout)
+    console.setFormatter(formatter)
+
+    listener: QueueListener = QueueListener(queue, console)
+
+    return top_log, listener
 
 
 if __name__ == "__main__":
@@ -125,14 +135,8 @@ if __name__ == "__main__":
     # multiprocess queue.
     QUEUE: Queue = Queue()
     ST_LOG: logging.Logger
-    ST_FORMATTER: logging.Formatter
-    ST_LOG, ST_FORMATTER = setup_multi_logging(QUEUE, ARGS.debug)
-    # Attache a listener to the queue with a stream handler to print out the messages on
-    # standard out
-    ST_HANDLER: logging.StreamHandler = logging.StreamHandler(stream=stdout)
-    ST_HANDLER.setFormatter(ST_FORMATTER)
-    ST_LISTENER: QueueListener = QueueListener(QUEUE, ST_HANDLER)
-    # Start the listeners background thread
+    ST_LISTENER: QueueListener
+    ST_LOG, ST_LISTENER = setup_multi_logging(QUEUE, ARGS.debug)
     ST_LISTENER.start()
 
     CONFIG: ConfigParser = ConfigParser()

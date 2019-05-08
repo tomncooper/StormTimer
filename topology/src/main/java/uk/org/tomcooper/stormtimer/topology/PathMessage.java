@@ -16,6 +16,8 @@ public class PathMessage {
 
 	private String messageID;
 	private long originTimestamp;
+	private long entryTimestamp;
+	private long exitTimestamp;
 	private String[] path;
 
 	public void setMessageID(String messageID) {
@@ -38,5 +40,21 @@ public class PathMessage {
 		newPath[oldPath.length] = pathElement;
 		setPath(newPath);
 
+	}
+
+	public long getEntryTimestamp() {
+		return entryTimestamp;
+	}
+
+	public void setEntryTimestamp(long entryTimestamp) {
+		this.entryTimestamp = entryTimestamp;
+	}
+
+	public long getExitTimestamp() {
+		return exitTimestamp;
+	}
+
+	public void setExitTimestamp(long exitTimestamp) {
+		this.exitTimestamp = exitTimestamp;
 	}
 }
