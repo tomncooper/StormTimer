@@ -16,6 +16,16 @@ public class MultiplierTimerTopologyRunner {
 
 	public static void main(String[] args) {
 
+		boolean async = false;
+		if(args[2].equals("sync")){
+			async = false;
+		} else if (args[2].equals("async")){
+			async = true;
+		} else {			
+			System.err.println("Invalid argument: " + args[2] + " should be 'sync' or 'async'");
+			System.exit(1);
+		}
+
 		TopologyBuilder builder = new TopologyBuilder();
 
 		String kafkaServer = "tncbroker.ukwest.cloudapp.azure.com:9092";
@@ -31,7 +41,7 @@ public class MultiplierTimerTopologyRunner {
 		String pathBoltName = "MultiPathBolt";
 		builder.setBolt(pathBoltName, new PathBoltMultiplier(multiplier), 2).setNumTasks(numTasks).shuffleGrouping(spoutName, "kafkaMessages");
 		String senderBoltName = "SenderBolt";
-		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic), 2).setNumTasks(numTasks)
+		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
 				.fieldsGrouping(pathBoltName, "pathMessages", new Fields("key"));
 
 		StormTopology topology = builder.createTopology();

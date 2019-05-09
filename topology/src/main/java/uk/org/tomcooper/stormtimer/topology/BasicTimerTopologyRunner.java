@@ -42,6 +42,16 @@ public class BasicTimerTopologyRunner {
 
 	public static void main(String[] args) {
 
+		boolean async = false;
+		if(args[2].equals("sync")){
+			async = false;
+		} else if (args[2].equals("async")){
+			async = true;
+		} else {			
+			System.err.println("Invalid argument: " + args[2] + " should be 'sync' or 'async'");
+			System.exit(1);
+		}
+		
 		TopologyBuilder builder = new TopologyBuilder();
 
 		String kafkaServer = "tncbroker.ukwest.cloudapp.azure.com:9092";
@@ -56,7 +66,7 @@ public class BasicTimerTopologyRunner {
 		String pathBoltName = "PathBolt";
 		builder.setBolt(pathBoltName, new PathBolt(), 2).setNumTasks(numTasks).shuffleGrouping(spoutName, "kafkaMessages");
 		String senderBoltName = "SenderBolt";
-		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic), 2).setNumTasks(numTasks)
+		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
 				.shuffleGrouping(pathBoltName, "pathMessages");
 
 		StormTopology topology = builder.createTopology();
@@ -82,10 +92,10 @@ public class BasicTimerTopologyRunner {
 			}
 
 			System.out.println("\n\n######\nTopology Submitted");
-			System.out.println("Sleeping for " + args[2] + "ms....\n######\n\n");
+			System.out.println("Sleeping for " + args[3] + "ms....\n######\n\n");
 
 			try {
-				Thread.sleep(Long.valueOf(args[2]));
+				Thread.sleep(Long.valueOf(args[3]));
 			} catch (NumberFormatException e) {
 				e.printStackTrace();
 			} catch (InterruptedException e) {

@@ -3,8 +3,7 @@
 # Arguments:
 #	1: local/remote 
 #   2: basic/multi
-
-rm target/*.jar
+#   3: sync/async
 
 if [ $2 = 'basic' ] 
 then
@@ -17,6 +16,8 @@ else
 	exit 1
 fi
 
+rm target/*.jar
+
 mvn package -Dtopology.class=$topo
 
 if [ $1 = 'local' ] 
@@ -26,6 +27,7 @@ storm jar target/topology-0.0.1-SNAPSHOT-jar-with-dependencies.jar \
     uk.org.tomcooper.stormtimer.topology.$topo \
     local \
     TimerLocal \
+    $3 \
     120000
 
 elif [ $1 = 'remote' ]
@@ -34,7 +36,8 @@ then
 storm jar target/topology-0.0.1-SNAPSHOT-jar-with-dependencies.jar \
     uk.org.tomcooper.stormtimer.topology.$topo \
     remote \
-    StormTimer
+    StormTimer \
+	$3
 
 else
 	echo 'Unkown deployment type :' $1

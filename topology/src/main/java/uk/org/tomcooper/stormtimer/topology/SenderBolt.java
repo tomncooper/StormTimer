@@ -30,8 +30,9 @@ public class SenderBolt implements IRichBolt {
 	private KafkaProducer<String, String> kafkaProducer;
 	private Properties kafkaProperties;
 	private String topic;
+	private boolean async;
 
-	public SenderBolt(String kafkaServer, String topic) {
+	public SenderBolt(String kafkaServer, String topic, boolean async) {
 		Properties props = new Properties();
 		props.setProperty("bootstrap.servers", kafkaServer);
 		props.setProperty("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
@@ -39,6 +40,7 @@ public class SenderBolt implements IRichBolt {
 
 		kafkaProperties = props;
 		this.topic = topic;
+		this.async = async;
 
 	}
 
@@ -64,19 +66,22 @@ public class SenderBolt implements IRichBolt {
 		String newPathElement = name + ":" + taskID;
 		pathMsg.addPathElement(newPathElement);
 		pathMsg.setExitTimestamp(System.currentTimeMillis());
-		
+
 		String pathMessage = gson.toJson(pathMsg);
 
 		ProducerRecord<String, String> record = new ProducerRecord<String, String>(topic, pathMessage);
 		Future<RecordMetadata> result = kafkaProducer.send(record);
-		try {
-            result.get();
-            collector.ack(input);
-        } catch (ExecutionException | InterruptedException err) {
-            collector.reportError(err);
-            collector.fail(input);
-        }
-
+		if (!async) {
+			try {
+				result.get();
+				collector.ack(input);
+			} catch (ExecutionException | InterruptedException err) {
+				collector.reportError(err);
+				collector.fail(input);
+			}
+		} else {
+			collector.ack(input);
+		}
 		tracer.addCPULatency(input, cpuTimer.stopTimer());
 	}
 
