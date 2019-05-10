@@ -1,5 +1,6 @@
 import logging
 import json
+import uuid
 
 from typing import List, Dict, Union
 from configparser import ConfigParser
@@ -18,7 +19,7 @@ from common import create_parser, setup_single_logging
 
 LOG: logging.Logger = logging.getLogger("stormtimer.receiver")
 
-METRIC = Dict[str, Union[str, Dict[str, Union[str, int]]]]
+METRIC = Dict[str, Union[str, Dict[str, Union[str, int, float]]]]
 
 
 def process_payload(payload: str, kafka_ts_value: int) -> List[METRIC]:
@@ -26,7 +27,8 @@ def process_payload(payload: str, kafka_ts_value: int) -> List[METRIC]:
     path_message = json.loads(payload)
 
     kafka_diff: int = kafka_ts_value - path_message["originTimestamp"]
-    storm_diff: int = path_message["exitTimestamp"] - path_message["entryTimestamp"]
+    storm_ns_ms: float = path_message["stormNanoLatencyMs"]
+    storm_ms_ms: float = path_message["stormMilliLatencyMs"]
 
     LOG.debug(
         "Received message: %s at time: %d with time delta %d ms",
@@ -51,18 +53,22 @@ def process_payload(payload: str, kafka_ts_value: int) -> List[METRIC]:
         "fields": {"value": kafka_diff, "path": path_str},
     }
 
-    storm_metric: METRIC = {
-        "measurement": "measured-storm-latency",
+    e2e_metric: METRIC = {
+        "measurement": "measured-end2end-latency",
         "tags": {
             "spout_component": spout_comp,
             "spout_task": int(spout_task),
             "sink_component": sink_comp,
             "sink_task": int(sink_task),
         },
-        "fields": {"value": storm_diff, "path": path_str},
+        "fields": {
+            "ns_latency_ms": storm_ns_ms,
+            "ms_latency_ms": storm_ms_ms,
+            "path": path_str,
+        },
     }
 
-    return [kafka_metric, storm_metric]
+    return [kafka_metric, e2e_metric]
 
 
 def run(kafka_consumer: Consumer, influx_client: InfluxDBClient) -> None:
@@ -116,7 +122,9 @@ if __name__ == "__main__":
     KAF_CON: Consumer = Consumer(
         {
             "bootstrap.servers": CONFIG["kafka"]["server"],
-            "group.id": CONFIG["consumer"]["group"],
+            "group.id": str(uuid.uuid4()),
+            "auto.offset.reset": "latest",
+            "enable.auto.commit": "false",
         },
         logger=ST_LOG,
     )

@@ -38,13 +38,15 @@ public class PathBolt implements IRichBolt {
 		String[] path = { path1, path2 };
 		String messageID = input.getStringByField("uuid");
 		long originTimestamp = input.getLongByField("messageTimestamp");
-		long entryTimestamp = input.getLongByField("entryTimestamp");
+		long entryNanoTimestamp = input.getLongByField("entryNanoTimestamp");
+		long entryMilliTimestamp = input.getLongByField("entryMilliTimestamp");
 
 		PathMessage pathMsg = new PathMessage();
 		pathMsg.setMessageID(messageID);
 		pathMsg.setOriginTimestamp(originTimestamp);
 		pathMsg.setPath(path);
-		pathMsg.setEntryTimestamp(entryTimestamp);
+		pathMsg.setEntryNanoTimestamp(entryNanoTimestamp);
+		pathMsg.setEntryMilliTimestamp(entryMilliTimestamp);
 		
 		Gson gson = new Gson();
 		String pathMessage = gson.toJson(pathMsg);

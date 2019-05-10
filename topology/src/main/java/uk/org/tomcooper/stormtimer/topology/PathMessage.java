@@ -16,8 +16,10 @@ public class PathMessage {
 
 	private String messageID;
 	private long originTimestamp;
-	private long entryTimestamp;
-	private long exitTimestamp;
+	private long entryNanoTimestamp;
+	private long entryMilliTimestamp;
+	private double stormNanoLatencyMs;
+	private double stormMilliLatencyMs;
 	private String[] path;
 
 	public void setMessageID(String messageID) {
@@ -42,19 +44,35 @@ public class PathMessage {
 
 	}
 
-	public long getEntryTimestamp() {
-		return entryTimestamp;
+	public double getStormNanoLatencyMs() {
+		return stormNanoLatencyMs;
 	}
 
-	public void setEntryTimestamp(long entryTimestamp) {
-		this.entryTimestamp = entryTimestamp;
+	public void setStormNanoLatencyMs(double stormNanoLatencyMs) {
+		this.stormNanoLatencyMs = stormNanoLatencyMs;
 	}
 
-	public long getExitTimestamp() {
-		return exitTimestamp;
+	public double getStormMilliLatencyMs() {
+		return stormMilliLatencyMs;
 	}
 
-	public void setExitTimestamp(long exitTimestamp) {
-		this.exitTimestamp = exitTimestamp;
+	public void setStormMilliLatencyMs(double stormMilliLatencyMs) {
+		this.stormMilliLatencyMs = stormMilliLatencyMs;
+	}
+
+	public long getEntryNanoTimestamp() {
+		return entryNanoTimestamp;
+	}
+
+	public void setEntryNanoTimestamp(long entryNanoTimestamp) {
+		this.entryNanoTimestamp = entryNanoTimestamp;
+	}
+
+	public long getEntryMilliTimestamp() {
+		return entryMilliTimestamp;
+	}
+
+	public void setEntryMilliTimestamp(long entryMilliTimestamp) {
+		this.entryMilliTimestamp = entryMilliTimestamp;
 	}
 }

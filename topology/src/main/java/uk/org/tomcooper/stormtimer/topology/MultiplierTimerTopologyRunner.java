@@ -34,7 +34,7 @@ public class MultiplierTimerTopologyRunner {
 		String outgoingTopic = "afterStorm";
 
 		int numTasks = 8;
-		int multiplier = 10;
+		int multiplier = 2;
 		
 		String spoutName = "TimerSpout";
 		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic), 2).setNumTasks(numTasks);
@@ -67,10 +67,10 @@ public class MultiplierTimerTopologyRunner {
 			}
 
 			System.out.println("\n\n######\nTopology Submitted");
-			System.out.println("Sleeping for " + args[2] + "ms....\n######\n\n");
+			System.out.println("Sleeping for " + args[3] + "ms....\n######\n\n");
 
 			try {
-				Thread.sleep(Long.valueOf(args[2]));
+				Thread.sleep(Long.valueOf(args[3]));
 			} catch (NumberFormatException e) {
 				e.printStackTrace();
 			} catch (InterruptedException e) {
