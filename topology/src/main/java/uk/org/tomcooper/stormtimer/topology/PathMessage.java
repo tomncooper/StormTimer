@@ -16,8 +16,6 @@ public class PathMessage {
 
 	private String messageID;
 	private long originTimestamp;
-	private long entryNanoTimestamp;
-	private long entryMilliTimestamp;
 	private double stormNanoLatencyMs;
 	private double stormMilliLatencyMs;
 	private String[] path;
@@ -60,19 +58,4 @@ public class PathMessage {
 		this.stormMilliLatencyMs = stormMilliLatencyMs;
 	}
 
-	public long getEntryNanoTimestamp() {
-		return entryNanoTimestamp;
-	}
-
-	public void setEntryNanoTimestamp(long entryNanoTimestamp) {
-		this.entryNanoTimestamp = entryNanoTimestamp;
-	}
-
-	public long getEntryMilliTimestamp() {
-		return entryMilliTimestamp;
-	}
-
-	public void setEntryMilliTimestamp(long entryMilliTimestamp) {
-		this.entryMilliTimestamp = entryMilliTimestamp;
-	}
 }

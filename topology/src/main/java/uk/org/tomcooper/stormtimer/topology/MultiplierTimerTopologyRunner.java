@@ -34,7 +34,7 @@ public class MultiplierTimerTopologyRunner {
 		String outgoingTopic = "afterStorm";
 
 		int numTasks = 8;
-		int multiplier = 2;
+		int multiplier = 10;
 		
 		String spoutName = "TimerSpout";
 		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic), 2).setNumTasks(numTasks);
@@ -48,7 +48,7 @@ public class MultiplierTimerTopologyRunner {
 
 		if (args[0].equals("local")) {
 			
-			int numWorkers = 1;
+			int numWorkers = 2;
 
 			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks);
 			ILocalCluster cluster = new LocalCluster();

@@ -52,10 +52,12 @@ public class PathBoltMultiplier extends PathBolt {
 		tracer.addTransfer(input, System.currentTimeMillis() - input.getLongByField("timestamp"));
 		String pathMessage = super.createPathMessage(input);
 
+		long entryNanoTimestamp = input.getLongByField("entryNanoTimestamp");
+		long entryMilliTimestamp = input.getLongByField("entryMilliTimestamp");
 
 		for(int i = 0; i < multiplier; i++) {		
 			String key = chooseKey();
-			Values outputTuple = new Values(System.currentTimeMillis(), key, pathMessage);
+			Values outputTuple = new Values(System.currentTimeMillis(), key, entryNanoTimestamp, entryMilliTimestamp, pathMessage);
 			collector.emit("pathMessages", input, outputTuple);
 		}
 
@@ -65,7 +67,7 @@ public class PathBoltMultiplier extends PathBolt {
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		declarer.declareStream("pathMessages", new Fields("timestamp", "key", "pathMessage"));
+		declarer.declareStream("pathMessages", new Fields("timestamp", "key", "entryNanoTimestamp", "entryMilliTimestamp", "pathMessage"));
 	}
 	
 }
