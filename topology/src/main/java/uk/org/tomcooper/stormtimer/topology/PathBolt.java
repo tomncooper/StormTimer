@@ -10,13 +10,12 @@ import org.apache.storm.tuple.Fields;
 import org.apache.storm.tuple.Tuple;
 import org.apache.storm.tuple.Values;
 
-import com.google.gson.Gson;
-
 import uk.org.tomcooper.tracer.metrics.CPULatencyTimer;
 import uk.org.tomcooper.tracer.metrics.TracerMetricManager;
 
 public class PathBolt implements IRichBolt {
 
+	private static final long serialVersionUID = 9077261044025094494L;
 	protected OutputCollector collector;
 	protected TracerMetricManager tracer;
 	protected CPULatencyTimer cpuTimer;
@@ -24,7 +23,7 @@ public class PathBolt implements IRichBolt {
 	protected String name;
 
 	@Override
-	public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
+	public void prepare(@SuppressWarnings("rawtypes") Map stormConf, TopologyContext context, OutputCollector collector) {
 		this.collector = collector;
 		tracer = new TracerMetricManager(stormConf, context);
 		cpuTimer = new CPULatencyTimer();
@@ -32,30 +31,12 @@ public class PathBolt implements IRichBolt {
 		name = context.getComponentId(taskID);
 	}
 	
-	protected String createPathMessage(Tuple input) {
-		String path1 = input.getStringByField("path");
-		String path2 = name + ":" + taskID;
-		String[] path = { path1, path2 };
-		String messageID = input.getStringByField("uuid");
-		long originTimestamp = input.getLongByField("messageTimestamp");
-
-		PathMessage pathMsg = new PathMessage();
-		pathMsg.setMessageID(messageID);
-		pathMsg.setOriginTimestamp(originTimestamp);
-		pathMsg.setPath(path);
-		
-		Gson gson = new Gson();
-		String pathMessage = gson.toJson(pathMsg);
-
-		return pathMessage;
-	}
-
 	@Override
 	public void execute(Tuple input) {
 		cpuTimer.startTimer(Thread.currentThread().getId());
 		tracer.addTransfer(input, System.currentTimeMillis() - input.getLongByField("timestamp"));
 
-		String pathMessage = createPathMessage(input);
+		String pathMessage = PathMessageBuilder.createPathMessageStr(name, taskID, input);
 
 		long entryNanoTimestamp = input.getLongByField("entryNanoTimestamp");
 		long entryMilliTimestamp = input.getLongByField("entryMilliTimestamp");

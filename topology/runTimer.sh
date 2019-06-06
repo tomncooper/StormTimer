@@ -11,6 +11,9 @@ then
 elif [ $2 = 'multi' ] 
 then
 	topo='MultiplierTimerTopologyRunner'
+elif [ $2 = 'window' ] 
+then
+	topo='WindowedTimerTopologyRunner'
 else
 	echo 'Unkown topology type :' $2
 	exit 1

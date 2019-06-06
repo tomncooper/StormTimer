@@ -35,6 +35,7 @@ public class MultiplierTimerTopologyRunner {
 
 		int numTasks = 8;
 		int multiplier = 10;
+		int metricsBucketPeriod = 2;
 		
 		String spoutName = "TimerSpout";
 		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic), 2).setNumTasks(numTasks);
@@ -50,7 +51,7 @@ public class MultiplierTimerTopologyRunner {
 			
 			int numWorkers = 2;
 
-			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks);
+			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);
 			ILocalCluster cluster = new LocalCluster();
 
 			System.out.println("\n\n######\nSubmitting Topology to Local " + "Cluster\n######\n\n");
@@ -82,7 +83,7 @@ public class MultiplierTimerTopologyRunner {
 
 			int numWorkers = 4;
 
-			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks);
+			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);
 
 			try {
 				StormSubmitter.submitTopology(args[1], conf, topology);

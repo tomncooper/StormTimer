@@ -9,36 +9,11 @@ import org.apache.storm.generated.AuthorizationException;
 import org.apache.storm.generated.InvalidTopologyException;
 import org.apache.storm.generated.StormTopology;
 import org.apache.storm.topology.TopologyBuilder;
+import org.apache.storm.topology.base.BaseWindowedBolt.Count;
+import org.apache.storm.tuple.Fields;
 
-public class BasicTimerTopologyRunner {
+public class WindowedTimerTopologyRunner {
 
-	static Config createConf(boolean debug, int numWorkers, int maxTaskPar, int metricsBucketPeriod) {
-
-		Config conf = new Config();
-		conf.setDebug(debug);
-		conf.setMaxTaskParallelism(maxTaskPar);
-
-		conf.put("topology.builtin.metrics.bucket.size.secs", metricsBucketPeriod);
-
-		// This is really important! Will need to see the effect on accuracy using a
-		// lower sampling rate. It is unlikely
-		// that you would run a sampling rate of 1.0 in a production environment due to
-		// the overhead.
-		conf.put("topology.stats.sample.rate", 1.0);
-
-		// Disable backpressure as I have yet to see how it effects the predictions
-		conf.put("topology.backpressure.enable", false);
-
-		conf.put("tracerdb.host", "http://tracer.ukwest.cloudapp.azure.com:8086");
-		conf.put("tracerdb.user", "tom");
-		conf.put("tracerdb.password", "bigdata");
-		conf.put("tracerdb.name", "tracer");
-
-		conf.setNumWorkers(numWorkers);
-		conf.registerMetricsConsumer(uk.org.tomcooper.tracer.metrics.Consumer.class, numWorkers);
-
-		return conf;
-	}
 
 	public static void main(String[] args) {
 
@@ -51,7 +26,7 @@ public class BasicTimerTopologyRunner {
 			System.err.println("Invalid argument: " + args[2] + " should be 'sync' or 'async'");
 			System.exit(1);
 		}
-		
+
 		TopologyBuilder builder = new TopologyBuilder();
 
 		String kafkaServer = "tncbroker.ukwest.cloudapp.azure.com:9092";
@@ -60,23 +35,25 @@ public class BasicTimerTopologyRunner {
 		String outgoingTopic = "afterStorm";
 
 		int numTasks = 8;
+		Count windowCount = new Count(10);
 		int metricsBucketPeriod = 2;
 		
 		String spoutName = "TimerSpout";
 		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic), 2).setNumTasks(numTasks);
-		String pathBoltName = "PathBolt";
-		builder.setBolt(pathBoltName, new PathBolt(), 2).setNumTasks(numTasks).shuffleGrouping(spoutName, "kafkaMessages");
+		String pathBoltName = "WindowedPathBolt";
+		builder.setBolt(pathBoltName, new PathBoltWindowed().withTumblingWindow(windowCount), 2).setNumTasks(numTasks).shuffleGrouping(spoutName, "kafkaMessages");
 		String senderBoltName = "SenderBolt";
 		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
 				.shuffleGrouping(pathBoltName, "pathMessages");
+		//		.fieldsGrouping(pathBoltName, "pathMessages", new Fields("key"));
 
 		StormTopology topology = builder.createTopology();
 
 		if (args[0].equals("local")) {
 			
-			int numWorkers = 1;
+			int numWorkers = 2;
 
-			Config conf = createConf(false, numWorkers, numTasks, metricsBucketPeriod);
+			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);
 			ILocalCluster cluster = new LocalCluster();
 
 			System.out.println("\n\n######\nSubmitting Topology to Local " + "Cluster\n######\n\n");
@@ -108,7 +85,7 @@ public class BasicTimerTopologyRunner {
 
 			int numWorkers = 4;
 
-			Config conf = createConf(false, numWorkers, numTasks, metricsBucketPeriod);
+			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);
 
 			try {
 				StormSubmitter.submitTopology(args[1], conf, topology);
