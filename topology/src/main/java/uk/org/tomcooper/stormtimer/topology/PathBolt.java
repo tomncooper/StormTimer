@@ -21,6 +21,7 @@ public class PathBolt implements IRichBolt {
 	protected CPULatencyTimer cpuTimer;
 	protected int taskID;
 	protected String name;
+	private KeyGenerator keyGen;
 
 	@Override
 	public void prepare(@SuppressWarnings("rawtypes") Map stormConf, TopologyContext context, OutputCollector collector) {
@@ -29,6 +30,7 @@ public class PathBolt implements IRichBolt {
 		cpuTimer = new CPULatencyTimer();
 		taskID = context.getThisTaskId();
 		name = context.getComponentId(taskID);
+		keyGen = new KeyGenerator();
 	}
 	
 	@Override
@@ -37,10 +39,12 @@ public class PathBolt implements IRichBolt {
 		tracer.addTransfer(input, System.currentTimeMillis() - input.getLongByField("timestamp"));
 
 		String pathMessage = PathMessageBuilder.createPathMessageStr(name, taskID, input);
+		String key = keyGen.chooseKey();
 
 		long entryNanoTimestamp = input.getLongByField("entryNanoTimestamp");
 		long entryMilliTimestamp = input.getLongByField("entryMilliTimestamp");
-		Values outputTuple = new Values(System.currentTimeMillis(), entryNanoTimestamp, entryMilliTimestamp, pathMessage);
+
+		Values outputTuple = new Values(System.currentTimeMillis(), key, entryNanoTimestamp, entryMilliTimestamp, pathMessage);
 
 		collector.emit("pathMessages", input, outputTuple);
 
@@ -56,7 +60,7 @@ public class PathBolt implements IRichBolt {
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		declarer.declareStream("pathMessages", new Fields("timestamp", "entryNanoTimestamp", "entryMilliTimestamp", "pathMessage"));
+		declarer.declareStream("pathMessages", new Fields("timestamp", "key", "entryNanoTimestamp", "entryMilliTimestamp", "pathMessage"));
 
 	}
 
