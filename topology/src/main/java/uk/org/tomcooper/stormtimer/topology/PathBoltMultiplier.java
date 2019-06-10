@@ -17,7 +17,7 @@ import uk.org.tomcooper.tracer.metrics.TracerMetricManager;
 public class PathBoltMultiplier implements IRichBolt {
 
 	private static final long serialVersionUID = -5499409182647305065L;
-	private int multiplier;	
+	private MultiplierGenerator generator;
 	protected OutputCollector collector;
 	protected TracerMetricManager tracer;
 	protected CPULatencyTimer cpuTimer;
@@ -25,8 +25,8 @@ public class PathBoltMultiplier implements IRichBolt {
 	protected String name;
 	private KeyGenerator keyGen;
 
-	public PathBoltMultiplier(int multiplier) {
-		this.multiplier = multiplier;
+	public PathBoltMultiplier(int min, int max, int mean, double std) {
+		generator = new MultiplierGenerator(min, max, mean, std);
 		keyGen = new KeyGenerator();
 		
 	}
@@ -50,6 +50,7 @@ public class PathBoltMultiplier implements IRichBolt {
 
 		long entryNanoTimestamp = input.getLongByField("entryNanoTimestamp");
 		long entryMilliTimestamp = input.getLongByField("entryMilliTimestamp");
+		int multiplier = generator.generateMultiplier();
 
 		for(int i = 0; i < multiplier; i++) {		
 			String key = keyGen.chooseKey();

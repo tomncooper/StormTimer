@@ -13,15 +13,14 @@ import org.apache.storm.tuple.Fields;
 
 public class MultiplierTimerTopologyRunner {
 
-
 	public static void main(String[] args) {
 
 		boolean async = false;
-		if(args[2].equals("sync")){
+		if (args[2].equals("sync")) {
 			async = false;
-		} else if (args[2].equals("async")){
+		} else if (args[2].equals("async")) {
 			async = true;
-		} else {			
+		} else {
 			System.err.println("Invalid argument: " + args[2] + " should be 'sync' or 'async'");
 			System.exit(1);
 		}
@@ -34,13 +33,18 @@ public class MultiplierTimerTopologyRunner {
 		String outgoingTopic = "afterStorm";
 
 		int numTasks = 8;
-		int multiplier = 10;
+		int multiplierMin = 1;
+		int multiplierMax = 20;
+		int multiplierMean = 10;
+		double multiplierSTD = 1.0;
 		int metricsBucketPeriod = 2;
-		
+
 		String spoutName = "TimerSpout";
 		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic), 2).setNumTasks(numTasks);
 		String pathBoltName = "MultiPathBolt";
-		builder.setBolt(pathBoltName, new PathBoltMultiplier(multiplier), 2).setNumTasks(numTasks).shuffleGrouping(spoutName, "kafkaMessages");
+		builder.setBolt(pathBoltName,
+				new PathBoltMultiplier(multiplierMin, multiplierMax, multiplierMean, multiplierSTD), 2)
+				.setNumTasks(numTasks).shuffleGrouping(spoutName, "kafkaMessages");
 		String senderBoltName = "SenderBolt";
 		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
 				.fieldsGrouping(pathBoltName, "pathMessages", new Fields("key"));
@@ -48,7 +52,7 @@ public class MultiplierTimerTopologyRunner {
 		StormTopology topology = builder.createTopology();
 
 		if (args[0].equals("local")) {
-			
+
 			int numWorkers = 2;
 
 			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);
