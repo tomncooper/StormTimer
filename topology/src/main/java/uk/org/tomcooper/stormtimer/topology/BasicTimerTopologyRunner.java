@@ -36,6 +36,7 @@ public class BasicTimerTopologyRunner {
 
 		conf.setNumWorkers(numWorkers);
 		conf.registerMetricsConsumer(uk.org.tomcooper.tracer.metrics.Consumer.class, numWorkers);
+		conf.put("topology.acker.executors", numWorkers);
 
 		return conf;
 	}
@@ -59,7 +60,7 @@ public class BasicTimerTopologyRunner {
 		String incomingTopic = "beforeStorm";
 		String outgoingTopic = "afterStorm";
 
-		int numTasks = 8;
+		int numTasks = 16;
 		int metricsBucketPeriod = 2;
 		
 		String spoutName = "TimerSpout";

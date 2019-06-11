@@ -34,7 +34,7 @@ public class WindowedTimerTopologyRunner {
 		String incomingTopic = "beforeStorm";
 		String outgoingTopic = "afterStorm";
 
-		int numTasks = 8;
+		int numTasks = 16;
 		Count windowCount = new Count(10);
 		int metricsBucketPeriod = 2;
 		

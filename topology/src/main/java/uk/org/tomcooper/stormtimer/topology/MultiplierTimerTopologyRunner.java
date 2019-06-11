@@ -32,7 +32,7 @@ public class MultiplierTimerTopologyRunner {
 		String incomingTopic = "beforeStorm";
 		String outgoingTopic = "afterStorm";
 
-		int numTasks = 8;
+		int numTasks = 16;
 		int multiplierMin = 1;
 		int multiplierMax = 20;
 		int multiplierMean = 10;

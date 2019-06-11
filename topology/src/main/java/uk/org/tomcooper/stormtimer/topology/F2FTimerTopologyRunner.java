@@ -32,7 +32,7 @@ public class F2FTimerTopologyRunner {
 		String incomingTopic = "beforeStorm";
 		String outgoingTopic = "afterStorm";
 
-		int numTasks = 8;
+		int numTasks = 16;
 		int metricsBucketPeriod = 2;
 		
 		String spoutName = "TimerSpout";
@@ -42,7 +42,7 @@ public class F2FTimerTopologyRunner {
 		builder.setBolt(pathBoltName, new PathBolt(), 2).setNumTasks(numTasks)
 				.shuffleGrouping(spoutName, "kafkaMessages");
 
-		String pathAdderName = "PathAdder";
+		String pathAdderName = "PathAdderBolt";
 		builder.setBolt(pathAdderName, new PathAdderBolt(), 2).setNumTasks(numTasks)
 				.fieldsGrouping(pathBoltName, "pathMessages", new Fields("key"));
 
