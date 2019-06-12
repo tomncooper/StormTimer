@@ -31,13 +31,13 @@ public class PathBoltWindowed  extends BaseWindowedBolt {
 	private KeyGenerator keyGen;
 
 	public PathBoltWindowed() {
-		random = new Random();
-		keyGen = new KeyGenerator();
 	}
 
 	@Override
 	public void prepare(@SuppressWarnings("rawtypes") Map stormConf, TopologyContext context, OutputCollector collector) {
 		this.collector = collector;
+		random = new Random();
+		keyGen = new KeyGenerator();
 		tracer = new TracerMetricManager(stormConf, context);
 		cpuTimer = new CPULatencyTimer();
 		taskID = context.getThisTaskId();
