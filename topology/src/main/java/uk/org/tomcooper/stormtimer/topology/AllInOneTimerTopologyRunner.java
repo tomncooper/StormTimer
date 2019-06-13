@@ -12,17 +12,16 @@ import org.apache.storm.topology.TopologyBuilder;
 import org.apache.storm.topology.base.BaseWindowedBolt.Count;
 import org.apache.storm.tuple.Fields;
 
-public class WindowedTimerTopologyRunner {
-
+public class AllInOneTimerTopologyRunner {
 
 	public static void main(String[] args) {
 
 		boolean async = false;
-		if(args[2].equals("sync")){
+		if (args[2].equals("sync")) {
 			async = false;
-		} else if (args[2].equals("async")){
+		} else if (args[2].equals("async")) {
 			async = true;
-		} else {			
+		} else {
 			System.err.println("Invalid argument: " + args[2] + " should be 'sync' or 'async'");
 			System.exit(1);
 		}
@@ -35,25 +34,37 @@ public class WindowedTimerTopologyRunner {
 		String outgoingTopic = "afterStorm";
 
 		int numTasks = 16;
-		Count windowCount = new Count(10);
+		int multiplierMin = 1;
+		int multiplierMax = 20;
+		int multiplierMean = 10;
+		double multiplierSTD = 1.0;
 		int metricsBucketPeriod = 2;
-		
+
 		String spoutName = "TimerSpout";
 		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic), 2).setNumTasks(numTasks);
 
-		String pathBoltName = "WindowedPathBolt";
-		builder.setBolt(pathBoltName, new PathBoltWindowed().withTumblingWindow(windowCount), 2).setNumTasks(numTasks).shuffleGrouping(spoutName, "kafkaMessages");
+		String pathMultiplierName = "MultiPathBolt";
+		String pathMultiplierOutputStream = "Stream2";
+		builder.setBolt(pathMultiplierName, new PathBoltMultiplier(pathMultiplierOutputStream, multiplierMin,
+				multiplierMax, multiplierMean, multiplierSTD), 2).setNumTasks(numTasks)
+				.shuffleGrouping(spoutName, "kafkaMessages");
+
+		Count windowCount = new Count(10);
+		String pathWindowerName = "WindowedPathBolt";
+		String pathWindowerOutputStream = "Stream3";
+		builder.setBolt(pathWindowerName,
+				new PathBoltWindowed(pathWindowerOutputStream).withTumblingWindow(windowCount), 2).setNumTasks(numTasks)
+				.fieldsGrouping(pathMultiplierName, pathMultiplierOutputStream, new Fields("key"));
 
 		String senderBoltName = "SenderBolt";
 		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
-				.shuffleGrouping(pathBoltName, "pathMessages");
-		//		.fieldsGrouping(pathBoltName, "pathMessages", new Fields("key"));
+				.fieldsGrouping(pathWindowerName, pathWindowerOutputStream, new Fields("key"));
 
 		StormTopology topology = builder.createTopology();
 
 		if (args[0].equals("local")) {
-			
-			int numWorkers = 2;
+
+			int numWorkers = 1;
 
 			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);
 			ILocalCluster cluster = new LocalCluster();

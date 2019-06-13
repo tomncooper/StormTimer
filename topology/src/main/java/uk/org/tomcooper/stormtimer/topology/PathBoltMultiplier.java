@@ -24,26 +24,40 @@ public class PathBoltMultiplier implements IRichBolt {
 	protected int taskID;
 	protected String name;
 	private KeyGenerator keyGen;
+	private int min;
+	private int max;
+	private int mean;
+	private double std;
+	private String outputStreamName;
+
+	public PathBoltMultiplier(String outputStreamName, int min, int max, int mean, double std) {
+		this.min = min;
+		this.max = max;
+		this.mean = mean;
+		this.std = std;
+		this.outputStreamName = outputStreamName;
+
+	}
 
 	public PathBoltMultiplier(int min, int max, int mean, double std) {
-		generator = new MultiplierGenerator(min, max, mean, std);
-		keyGen = new KeyGenerator();
-		
+		this("pathMessages", min, max, mean, std);
 	}
 
 	@Override
-	public void prepare(@SuppressWarnings("rawtypes") Map stormConf, TopologyContext context, OutputCollector collector) {
+	public void prepare(@SuppressWarnings("rawtypes") Map stormConf, TopologyContext context,
+			OutputCollector collector) {
 		this.collector = collector;
 		tracer = new TracerMetricManager(stormConf, context);
 		cpuTimer = new CPULatencyTimer();
 		taskID = context.getThisTaskId();
 		name = context.getComponentId(taskID);
+		generator = new MultiplierGenerator(min, max, mean, std);
+		keyGen = new KeyGenerator();
 	}
-	
 
 	@Override
 	public void execute(Tuple input) {
-		
+
 		cpuTimer.startTimer(Thread.currentThread().getId());
 		tracer.addTransfer(input, System.currentTimeMillis() - input.getLongByField("timestamp"));
 		String pathMessage = PathMessageBuilder.createPathMessageStr(name, taskID, input);
@@ -52,10 +66,12 @@ public class PathBoltMultiplier implements IRichBolt {
 		long entryMilliTimestamp = input.getLongByField("entryMilliTimestamp");
 		int multiplier = generator.generateMultiplier();
 
-		for(int i = 0; i < multiplier; i++) {		
+		for (int i = 0; i < multiplier; i++) {
 			String key = keyGen.chooseKey();
-			Values outputTuple = new Values(System.currentTimeMillis(), key, entryNanoTimestamp, entryMilliTimestamp, pathMessage);
-			collector.emit("pathMessages", input, outputTuple);
+			Values outputTuple = new Values(System.currentTimeMillis(), key, entryNanoTimestamp, entryMilliTimestamp,
+					pathMessage);
+
+			collector.emit(outputStreamName, input, outputTuple);
 		}
 
 		collector.ack(input);
@@ -64,13 +80,14 @@ public class PathBoltMultiplier implements IRichBolt {
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		declarer.declareStream("pathMessages", new Fields("timestamp", "key", "entryNanoTimestamp", "entryMilliTimestamp", "pathMessage"));
+		declarer.declareStream(outputStreamName,
+				new Fields("timestamp", "key", "entryNanoTimestamp", "entryMilliTimestamp", "pathMessage"));
 	}
 
 	@Override
 	public void cleanup() {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
@@ -78,5 +95,5 @@ public class PathBoltMultiplier implements IRichBolt {
 		// TODO Auto-generated method stub
 		return null;
 	}
-	
+
 }

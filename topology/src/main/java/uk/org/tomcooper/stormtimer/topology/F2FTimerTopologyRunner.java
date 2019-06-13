@@ -34,7 +34,6 @@ public class F2FTimerTopologyRunner {
 
 		int numTasks = 16;
 		int metricsBucketPeriod = 2;
-		
 		String spoutName = "TimerSpout";
 		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic), 2).setNumTasks(numTasks);
 
@@ -48,7 +47,8 @@ public class F2FTimerTopologyRunner {
 
 		String senderBoltName = "SenderBolt";
 		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
-				.fieldsGrouping(pathAdderName, "pathAddedMessages", new Fields("key"));
+				.fieldsGrouping(pathAdderName, "pathAddedMessages", new Fields("key"));	
+		
 
 		StormTopology topology = builder.createTopology();
 

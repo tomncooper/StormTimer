@@ -51,8 +51,7 @@ public class TimerSpout implements IRichSpout {
 	}
 
 	public void close() {
-		// TODO Auto-generated method stub
-
+		deactivate();
 	}
 
 	public void activate() {
@@ -66,16 +65,16 @@ public class TimerSpout implements IRichSpout {
 	}
 
 	public void nextTuple() {
-		
 
 		ConsumerRecords<String, String> records = kafkaConsumer.poll(Duration.ofMillis(1));
 
 		for (ConsumerRecord<String, String> record : records) {
 
 			String uuid = record.value();
-			long messageTimestamp = record.timestamp();
 			String path = name + ":" + taskID;
-			Values outputTuple = new Values(System.currentTimeMillis(), uuid, System.nanoTime(), System.currentTimeMillis(), messageTimestamp, path);
+			long messageTimestamp = record.timestamp();
+			Values outputTuple = new Values(System.currentTimeMillis(), uuid, System.nanoTime(),
+					System.currentTimeMillis(), messageTimestamp, path);
 
 			collector.emit("kafkaMessages", outputTuple, uuid);
 
@@ -94,7 +93,8 @@ public class TimerSpout implements IRichSpout {
 	}
 
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		declarer.declareStream("kafkaMessages", new Fields("timestamp", "uuid", "entryNanoTimestamp","entryMilliTimestamp", "messageTimestamp", "path"));
+		declarer.declareStream("kafkaMessages", new Fields("timestamp", "uuid", "entryNanoTimestamp",
+				"entryMilliTimestamp", "messageTimestamp", "path"));
 	}
 
 	public Map<String, Object> getComponentConfiguration() {

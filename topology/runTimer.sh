@@ -2,7 +2,7 @@
 
 # Arguments:
 #   1: local/remote 
-#   2: basic/f2f/multi/window
+#   2: basic/f2f/multi/window/fish/all
 #   3: sync/async
 
 if [ $2 = 'basic' ] 
@@ -21,8 +21,16 @@ elif [ $2 = 'window' ]
 then
 	topo='WindowedTimerTopologyRunner'
         name='WindowedTimer'
+elif [ $2 = 'fish' ] 
+then
+	topo='FishTimerTopologyRunner'
+        name='FishTimer'
+elif [ $2 = 'all' ] 
+then
+	topo='AllInOneTimerTopologyRunner'
+        name='AllInOneTimer'
 else
-	echo 'Unkown topology type :' $2 '. Should be one of basic/f2f/multi/window'
+	echo 'Unkown topology type :' $2 '. Should be one of basic/f2f/multi/window/fish/all'
 	exit 1
 fi
 

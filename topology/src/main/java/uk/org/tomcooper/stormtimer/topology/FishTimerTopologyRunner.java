@@ -1,5 +1,7 @@
 package uk.org.tomcooper.stormtimer.topology;
 
+import java.util.concurrent.TimeUnit;
+
 import org.apache.storm.Config;
 import org.apache.storm.ILocalCluster;
 import org.apache.storm.LocalCluster;
@@ -8,21 +10,22 @@ import org.apache.storm.generated.AlreadyAliveException;
 import org.apache.storm.generated.AuthorizationException;
 import org.apache.storm.generated.InvalidTopologyException;
 import org.apache.storm.generated.StormTopology;
+import org.apache.storm.topology.IRichBolt;
 import org.apache.storm.topology.TopologyBuilder;
-import org.apache.storm.topology.base.BaseWindowedBolt.Count;
+import org.apache.storm.topology.base.BaseWindowedBolt;
+import org.apache.storm.topology.base.BaseWindowedBolt.Duration;
 import org.apache.storm.tuple.Fields;
 
-public class WindowedTimerTopologyRunner {
-
+public class FishTimerTopologyRunner {
 
 	public static void main(String[] args) {
 
 		boolean async = false;
-		if(args[2].equals("sync")){
+		if (args[2].equals("sync")) {
 			async = false;
-		} else if (args[2].equals("async")){
+		} else if (args[2].equals("async")) {
 			async = true;
-		} else {			
+		} else {
 			System.err.println("Invalid argument: " + args[2] + " should be 'sync' or 'async'");
 			System.exit(1);
 		}
@@ -35,25 +38,52 @@ public class WindowedTimerTopologyRunner {
 		String outgoingTopic = "afterStorm";
 
 		int numTasks = 16;
-		Count windowCount = new Count(10);
 		int metricsBucketPeriod = 2;
-		
+		int multiplierMin = 1;
+		int multiplierMax = 20;
+		int multiplierMean = 10;
+		double multiplierSTD = 1.0;
+
 		String spoutName = "TimerSpout";
 		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic), 2).setNumTasks(numTasks);
 
-		String pathBoltName = "WindowedPathBolt";
-		builder.setBolt(pathBoltName, new PathBoltWindowed().withTumblingWindow(windowCount), 2).setNumTasks(numTasks).shuffleGrouping(spoutName, "kafkaMessages");
+		String pathBoltName = "PathBolt";
+		String pathBoltOutputStream = "Stream1";
+		builder.setBolt(pathBoltName, new PathBolt(pathBoltOutputStream), 2).setNumTasks(numTasks)
+				.shuffleGrouping(spoutName, "kafkaMessages");
 
-		String senderBoltName = "SenderBolt";
-		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
-				.shuffleGrouping(pathBoltName, "pathMessages");
-		//		.fieldsGrouping(pathBoltName, "pathMessages", new Fields("key"));
+		String pathMultiplierName = "PathMultiplier";
+		String pathMultiplierOutputStream = "Stream2";
+		builder.setBolt(pathMultiplierName,
+				new PathBoltMultiplier(pathMultiplierOutputStream, multiplierMin, 
+										multiplierMax, multiplierMean, multiplierSTD), 2)
+				.setNumTasks(numTasks).shuffleGrouping(spoutName, "kafkaMessages");
+		
+	
+		String joinSplitName = "JoinSpitBolt";
+		String jsOutStream1 = "Stream3";
+		String jsOutStream2 = "Stream4";
+		Duration joinWindowLength = new Duration(2, TimeUnit.SECONDS);
+        BaseWindowedBolt joinSplit = new JoinSplitBolt(jsOutStream1, jsOutStream2).withTumblingWindow(joinWindowLength);
+		builder.setBolt(joinSplitName, joinSplit).setNumTasks(numTasks)
+				.shuffleGrouping(pathBoltName, pathBoltOutputStream)
+				.shuffleGrouping(pathMultiplierName, pathMultiplierOutputStream);
+		
+		String senderBoltAName = "SenderBoltA";
+		builder.setBolt(senderBoltAName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
+				//.fieldsGrouping(joinSplitName, jsOutStream1, new Fields("key"));
+				.shuffleGrouping(joinSplitName, jsOutStream1);
+
+		String senderBoltBName = "SenderBoltB";
+		builder.setBolt(senderBoltBName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
+				//.fieldsGrouping(joinSplitName, jsOutStream2, new Fields("key"));
+				.shuffleGrouping(joinSplitName, jsOutStream2);
 
 		StormTopology topology = builder.createTopology();
 
 		if (args[0].equals("local")) {
-			
-			int numWorkers = 2;
+
+			int numWorkers = 1;
 
 			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);
 			ILocalCluster cluster = new LocalCluster();

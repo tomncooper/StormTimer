@@ -22,6 +22,15 @@ public class PathBolt implements IRichBolt {
 	protected int taskID;
 	protected String name;
 	private KeyGenerator keyGen;
+	private String outputStreamName;
+	
+	public PathBolt(String outputStreamName) {
+		this.outputStreamName = outputStreamName;
+	}
+
+	public PathBolt() {
+		this.outputStreamName = "pathMessages";
+	}
 
 	@Override
 	public void prepare(@SuppressWarnings("rawtypes") Map stormConf, TopologyContext context, OutputCollector collector) {
@@ -46,7 +55,7 @@ public class PathBolt implements IRichBolt {
 
 		Values outputTuple = new Values(System.currentTimeMillis(), key, entryNanoTimestamp, entryMilliTimestamp, pathMessage);
 
-		collector.emit("pathMessages", input, outputTuple);
+		collector.emit(outputStreamName, input, outputTuple);
 
 		collector.ack(input);
 		tracer.addCPULatency(input, cpuTimer.stopTimer());
@@ -60,7 +69,7 @@ public class PathBolt implements IRichBolt {
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		declarer.declareStream("pathMessages", new Fields("timestamp", "key", "entryNanoTimestamp", "entryMilliTimestamp", "pathMessage"));
+		declarer.declareStream(outputStreamName, new Fields("timestamp", "key", "entryNanoTimestamp", "entryMilliTimestamp", "pathMessage"));
 
 	}
 
