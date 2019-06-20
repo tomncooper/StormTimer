@@ -96,7 +96,7 @@ public class AllInOneTimerTopologyRunner {
 			cluster.shutdown();
 		} else if (args[0].equals("remote")) {
 
-			int numWorkers = 4;
+			int numWorkers = 6;
 
 			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);
 

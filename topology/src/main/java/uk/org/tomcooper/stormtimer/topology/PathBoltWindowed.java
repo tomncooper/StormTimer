@@ -63,19 +63,19 @@ public class PathBoltWindowed extends BaseWindowedBolt {
 	@Override
 	public void execute(TupleWindow inputWindow) {
 		cpuTimer.startTimer(Thread.currentThread().getId());
+		long startTimeMs = System.currentTimeMillis();
 		long startTime = System.nanoTime();
 
 		List<Tuple> inputs = inputWindow.get();
 
 		Tuple randomSourceTuple = inputs.get(random.nextInt(inputs.size()));
 
-		tracer.addTransfer(randomSourceTuple,
-				System.currentTimeMillis() - randomSourceTuple.getLongByField("timestamp"));
-
 		long nanoTotal = 0;
 		long milliTotal = 0;
 
 		for (Tuple input : inputs) {
+
+			tracer.addTransfer(input, startTimeMs - input.getLongByField("timestamp"));
 
 			long entryNanoTimestamp = input.getLongByField("entryNanoTimestamp");
 			long entryMilliTimestamp = input.getLongByField("entryMilliTimestamp");
@@ -90,15 +90,16 @@ public class PathBoltWindowed extends BaseWindowedBolt {
 		String pathMessageStr;
 		try {
 			pathMessageStr = PathMessageBuilder.createPathMessageStr(name, taskID, randomSourceTuple);
-		} catch(IllegalArgumentException err) {
-			
+
+		} catch (IllegalArgumentException err) {
+
 			String pathMessage = randomSourceTuple.getStringByField("pathMessage");
-			
+
 			Gson gson = new Gson();
 			PathMessage pathMsg = gson.fromJson(pathMessage, PathMessage.class);
 
 			String newPathElement = name + ":" + taskID;
-			pathMsg.addPathElement(newPathElement);	
+			pathMsg.addPathElement(newPathElement);
 			pathMessageStr = gson.toJson(pathMsg);
 		}
 

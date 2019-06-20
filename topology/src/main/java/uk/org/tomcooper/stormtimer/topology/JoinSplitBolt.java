@@ -34,10 +34,12 @@ public class JoinSplitBolt extends BaseWindowedBolt {
 	private String outStream2Name;
 	private Random random;
 	private KeyGenerator keyGen;
+	private boolean simple;
 	
-	public JoinSplitBolt(String outStream1Name, String outStream2Name) {
+	public JoinSplitBolt(String outStream1Name, String outStream2Name, boolean simple) {
 		this.outStream1Name = outStream1Name;
 		this.outStream2Name = outStream2Name;
+		this.simple = simple;
 	}
 	
 	@Override
@@ -60,18 +62,21 @@ public class JoinSplitBolt extends BaseWindowedBolt {
 	@Override
 	public void execute(TupleWindow inputWindow) {
 		cpuTimer.startTimer(Thread.currentThread().getId());
+		long startTimeMs = System.currentTimeMillis();
 		long startTime = System.nanoTime();
 		
 		List<Tuple> inputs = inputWindow.get();
 
-		Tuple randomSourceTuple = inputs.get(random.nextInt(inputs.size()));
+		String oldPathMessageStr = inputs.get(random.nextInt(inputs.size())).getStringByField("pathMessage");	
 
 		long nanoTotal = 0;
 		long milliTotal = 0;
 		
-		Map<String, Integer> counts = new HashMap<String, Integer>();
+		Map<String, Integer> streamCounts = new HashMap<String, Integer>();
 
 		for(Tuple input: inputs) {
+
+			tracer.addTransfer(input, startTimeMs - input.getLongByField("timestamp"));
 			
 			long entryNanoTimestamp = input.getLongByField("entryNanoTimestamp");
 			long entryMilliTimestamp = input.getLongByField("entryMilliTimestamp");
@@ -81,10 +86,10 @@ public class JoinSplitBolt extends BaseWindowedBolt {
 			
 			String inputStream = input.getSourceStreamId();
 		    
-			if(counts.containsKey(inputStream)){
-				counts.put(inputStream, (counts.get(inputStream) + 1));
+			if(streamCounts.containsKey(inputStream)){
+				streamCounts.put(inputStream, (streamCounts.get(inputStream) + 1));
 			} else {
-				counts.put(inputStream, 1);
+				streamCounts.put(inputStream, 1);
 			}
 			
 			
@@ -93,20 +98,27 @@ public class JoinSplitBolt extends BaseWindowedBolt {
 		long avgNanoTimestamp = nanoTotal / inputs.size();
 		long avgMilliTimestamp = milliTotal / inputs.size();
 		
-		String pathMessage = randomSourceTuple.getStringByField("pathMessage");	
-
-		// Add the current task to the path within the path message
+        // Add the current task to the path within the path message
 		Gson gson = new Gson();
-		PathMessage pathMsg = gson.fromJson(pathMessage, PathMessage.class);
+		PathMessage pathMsg = gson.fromJson(oldPathMessageStr, PathMessage.class);
 		String newPathElement = name + ":" + taskID;
 		pathMsg.addPathElement(newPathElement);		
-		String pathMessageStr = gson.toJson(pathMsg);	
+		String newPathMessageStr = gson.toJson(pathMsg);	
+
 		String key = keyGen.chooseKey();
-		Values outputTuple = new Values(System.currentTimeMillis(), key, avgNanoTimestamp, avgMilliTimestamp, pathMessage);	
-		if(allEvenOrOdd(counts)) {
-			collector.emit(outStream1Name, outputTuple);
-		} else {			
-			collector.emit(outStream2Name, outputTuple);
+		Values outputTuple = new Values(System.currentTimeMillis(), key, avgNanoTimestamp, avgMilliTimestamp, newPathMessageStr);	
+
+		if(simple) {
+			collector.emit(outStream1Name, outputTuple);			
+			collector.emit(outStream2Name, outputTuple);			
+		} else {
+			String outStream;
+			if(allEvenOrOdd(streamCounts)) {
+				outStream = outStream1Name;
+			} else {			
+				outStream = outStream2Name;
+			}
+			collector.emit(outStream, outputTuple);
 		}
 		
 		// Update the window execute latency

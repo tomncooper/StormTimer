@@ -13,6 +13,7 @@ import org.apache.storm.generated.StormTopology;
 import org.apache.storm.topology.IRichBolt;
 import org.apache.storm.topology.TopologyBuilder;
 import org.apache.storm.topology.base.BaseWindowedBolt;
+import org.apache.storm.topology.base.BaseWindowedBolt.Count;
 import org.apache.storm.topology.base.BaseWindowedBolt.Duration;
 import org.apache.storm.tuple.Fields;
 
@@ -60,12 +61,14 @@ public class FishTimerTopologyRunner {
 				.setNumTasks(numTasks).shuffleGrouping(spoutName, "kafkaMessages");
 		
 	
-		String joinSplitName = "JoinSpitBolt";
+		String joinSplitName = "JoinSplitBolt";
 		String jsOutStream1 = "Stream3";
 		String jsOutStream2 = "Stream4";
+		boolean simple = true;
 		Duration joinWindowLength = new Duration(2, TimeUnit.SECONDS);
-        BaseWindowedBolt joinSplit = new JoinSplitBolt(jsOutStream1, jsOutStream2).withTumblingWindow(joinWindowLength);
-		builder.setBolt(joinSplitName, joinSplit).setNumTasks(numTasks)
+		Count joinWindowCount = new Count(100);
+        BaseWindowedBolt joinSplit = new JoinSplitBolt(jsOutStream1, jsOutStream2, simple).withTumblingWindow(joinWindowCount);
+		builder.setBolt(joinSplitName, joinSplit, 2).setNumTasks(numTasks)
 				.shuffleGrouping(pathBoltName, pathBoltOutputStream)
 				.shuffleGrouping(pathMultiplierName, pathMultiplierOutputStream);
 		
@@ -83,7 +86,7 @@ public class FishTimerTopologyRunner {
 
 		if (args[0].equals("local")) {
 
-			int numWorkers = 1;
+			int numWorkers = 2;
 
 			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);
 			ILocalCluster cluster = new LocalCluster();
@@ -115,7 +118,7 @@ public class FishTimerTopologyRunner {
 			cluster.shutdown();
 		} else if (args[0].equals("remote")) {
 
-			int numWorkers = 4;
+			int numWorkers = 8;
 
 			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);
 
