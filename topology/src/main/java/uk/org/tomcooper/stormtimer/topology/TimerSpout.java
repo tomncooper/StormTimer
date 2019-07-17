@@ -25,8 +25,11 @@ public class TimerSpout implements IRichSpout {
 	private List<String> topics;
 	private int taskID;
 	private String name;
+	private String outputStreamName;
+	private int numOutputStreams;
+	private List<String> outputStreams;
 
-	public TimerSpout(String kafkaServer, String groupID, String topic) {
+	public TimerSpout(String kafkaServer, String groupID, String topic, String outputStream, int numOutputStreams) {
 		Properties props = new Properties();
 		props.setProperty("bootstrap.servers", kafkaServer);
 		props.setProperty("group.id", groupID);
@@ -40,6 +43,9 @@ public class TimerSpout implements IRichSpout {
 		topics = new ArrayList<String>();
 		topics.add(topic);
 
+		this.outputStreamName = outputStream;
+		this.numOutputStreams = numOutputStreams;
+
 	}
 
 	public void open(Map conf, TopologyContext context, SpoutOutputCollector collector) {
@@ -47,6 +53,12 @@ public class TimerSpout implements IRichSpout {
 		this.collector = collector;
 		taskID = context.getThisTaskId();
 		name = context.getComponentId(taskID);
+
+		outputStreams = new ArrayList<String>();
+
+		for (int i = 0; i < numOutputStreams; i++) {
+			outputStreams.add(outputStreamName + i);
+		}
 
 	}
 
@@ -76,7 +88,9 @@ public class TimerSpout implements IRichSpout {
 			Values outputTuple = new Values(System.currentTimeMillis(), uuid, System.nanoTime(),
 					System.currentTimeMillis(), messageTimestamp, path);
 
-			collector.emit("kafkaMessages", outputTuple, uuid);
+		for (String streamName : outputStreams) {
+			collector.emit(streamName, outputTuple, uuid);
+		}
 
 		}
 
@@ -93,8 +107,10 @@ public class TimerSpout implements IRichSpout {
 	}
 
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		declarer.declareStream("kafkaMessages", new Fields("timestamp", "uuid", "entryNanoTimestamp",
-				"entryMilliTimestamp", "messageTimestamp", "path"));
+		for (String streamName : outputStreams) {
+			declarer.declareStream(streamName, new Fields("timestamp", "uuid", "entryNanoTimestamp",
+					"entryMilliTimestamp", "messageTimestamp", "path"));
+		}
 	}
 
 	public Map<String, Object> getComponentConfiguration() {

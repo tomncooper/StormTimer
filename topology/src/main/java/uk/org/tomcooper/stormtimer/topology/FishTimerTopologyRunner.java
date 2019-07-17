@@ -46,19 +46,21 @@ public class FishTimerTopologyRunner {
 		double multiplierSTD = 1.0;
 
 		String spoutName = "TimerSpout";
-		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic), 2).setNumTasks(numTasks);
+		String spoutOutStreamName = "kafkaMessages";
+		int numSpoutStreams = 2;
+		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic, spoutOutStreamName, numSpoutStreams), 2).setNumTasks(numTasks);
 
 		String pathBoltName = "PathBolt";
 		String pathBoltOutputStream = "Stream1";
 		builder.setBolt(pathBoltName, new PathBolt(pathBoltOutputStream), 2).setNumTasks(numTasks)
-				.shuffleGrouping(spoutName, "kafkaMessages");
+				.shuffleGrouping(spoutName, spoutOutStreamName + "0");
 
 		String pathMultiplierName = "PathMultiplier";
 		String pathMultiplierOutputStream = "Stream2";
 		builder.setBolt(pathMultiplierName,
 				new PathBoltMultiplier(pathMultiplierOutputStream, multiplierMin, 
 										multiplierMax, multiplierMean, multiplierSTD), 2)
-				.setNumTasks(numTasks).shuffleGrouping(spoutName, "kafkaMessages");
+				.setNumTasks(numTasks).shuffleGrouping(spoutName, spoutOutStreamName + "1");
 		
 	
 		String joinSplitName = "JoinSplitBolt";

@@ -14,15 +14,14 @@ import org.apache.storm.tuple.Fields;
 
 public class WindowedTimerTopologyRunner {
 
-
 	public static void main(String[] args) {
 
 		boolean async = false;
-		if(args[2].equals("sync")){
+		if (args[2].equals("sync")) {
 			async = false;
-		} else if (args[2].equals("async")){
+		} else if (args[2].equals("async")) {
 			async = true;
-		} else {			
+		} else {
 			System.err.println("Invalid argument: " + args[2] + " should be 'sync' or 'async'");
 			System.exit(1);
 		}
@@ -37,22 +36,27 @@ public class WindowedTimerTopologyRunner {
 		int numTasks = 16;
 		Count windowCount = new Count(10);
 		int metricsBucketPeriod = 2;
-		
+
 		String spoutName = "TimerSpout";
-		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic), 2).setNumTasks(numTasks);
+		String spoutOutStreamName = "kafkaMessages";
+		int numSpoutStreams = 1;
+		builder.setSpout(spoutName,
+				new TimerSpout(kafkaServer, groupID, incomingTopic, spoutOutStreamName, numSpoutStreams), 2)
+				.setNumTasks(numTasks);
 
 		String pathBoltName = "WindowedPathBolt";
-		builder.setBolt(pathBoltName, new PathBoltWindowed().withTumblingWindow(windowCount), 2).setNumTasks(numTasks).shuffleGrouping(spoutName, "kafkaMessages");
+		builder.setBolt(pathBoltName, new PathBoltWindowed().withTumblingWindow(windowCount), 2).setNumTasks(numTasks)
+				.shuffleGrouping(spoutName, spoutOutStreamName + "0");
 
 		String senderBoltName = "SenderBolt";
 		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
 				.shuffleGrouping(pathBoltName, "pathMessages");
-		//		.fieldsGrouping(pathBoltName, "pathMessages", new Fields("key"));
+		// .fieldsGrouping(pathBoltName, "pathMessages", new Fields("key"));
 
 		StormTopology topology = builder.createTopology();
 
 		if (args[0].equals("local")) {
-			
+
 			int numWorkers = 2;
 
 			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);

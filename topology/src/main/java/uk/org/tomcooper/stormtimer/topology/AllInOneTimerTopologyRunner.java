@@ -41,13 +41,15 @@ public class AllInOneTimerTopologyRunner {
 		int metricsBucketPeriod = 2;
 
 		String spoutName = "TimerSpout";
-		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic), 2).setNumTasks(numTasks);
+		String spoutOutStreamName = "kafkaMessages";
+		int numSpoutStreams = 1;
+		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic, spoutOutStreamName, numSpoutStreams), 2).setNumTasks(numTasks);
 
 		String pathMultiplierName = "MultiPathBolt";
 		String pathMultiplierOutputStream = "Stream2";
 		builder.setBolt(pathMultiplierName, new PathBoltMultiplier(pathMultiplierOutputStream, multiplierMin,
 				multiplierMax, multiplierMean, multiplierSTD), 2).setNumTasks(numTasks)
-				.shuffleGrouping(spoutName, "kafkaMessages");
+				.shuffleGrouping(spoutName, spoutOutStreamName + "0");
 
 		Count windowCount = new Count(10);
 		String pathWindowerName = "WindowedPathBolt";
