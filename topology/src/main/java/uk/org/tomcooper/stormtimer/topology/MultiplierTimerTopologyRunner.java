@@ -43,10 +43,12 @@ public class MultiplierTimerTopologyRunner {
 		String spoutOutStreamName = "kafkaMessages";
 		int numSpoutStreams = 1;
 		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic, spoutOutStreamName, numSpoutStreams), 2).setNumTasks(numTasks);
+
 		String pathBoltName = "MultiPathBolt";
 		builder.setBolt(pathBoltName,
 				new PathBoltMultiplier(multiplierMin, multiplierMax, multiplierMean, multiplierSTD), 2)
 				.setNumTasks(numTasks).shuffleGrouping(spoutName, spoutOutStreamName + "0");
+
 		String senderBoltName = "SenderBolt";
 		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
 				.fieldsGrouping(pathBoltName, "pathMessages", new Fields("key"));

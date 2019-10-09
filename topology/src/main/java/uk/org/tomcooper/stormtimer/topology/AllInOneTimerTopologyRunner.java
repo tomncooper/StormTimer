@@ -47,8 +47,7 @@ public class AllInOneTimerTopologyRunner {
 
 		String pathMultiplierName = "MultiPathBolt";
 		String pathMultiplierOutputStream = "Stream2";
-		builder.setBolt(pathMultiplierName, new PathBoltMultiplier(pathMultiplierOutputStream, multiplierMin,
-				multiplierMax, multiplierMean, multiplierSTD), 2).setNumTasks(numTasks)
+		builder.setBolt(pathMultiplierName, new SimplePathBoltMultiplier(pathMultiplierOutputStream, multiplierMean), 2).setNumTasks(numTasks)
 				.shuffleGrouping(spoutName, spoutOutStreamName + "0");
 
 		Count windowCount = new Count(10);
@@ -70,7 +69,6 @@ public class AllInOneTimerTopologyRunner {
 
 			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);
 			ILocalCluster cluster = new LocalCluster();
-
 			System.out.println("\n\n######\nSubmitting Topology to Local " + "Cluster\n######\n\n");
 
 			try {
