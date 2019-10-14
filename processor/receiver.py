@@ -14,6 +14,7 @@ from confluent_kafka import (
 )
 
 from influxdb import InfluxDBClient
+from influxdb.exceptions import InfluxDBServerError
 
 from common import create_parser, setup_single_logging
 
@@ -97,10 +98,14 @@ def run(kafka_consumer: Consumer, influx_client: InfluxDBClient) -> None:
 
             metrics: List[METRIC] = process_payload(payload, kafka_ts_value)
 
-            sent: bool = influx_client.write_points(metrics)
-
-            if not sent:
-                LOG.error("Failed to send metrics to InfluxDB")
+            try:
+                influx_client.write_points(metrics)
+            except InfluxDBServerError as ifdb:
+                LOG.error(
+                    "Received error from InfluxDB whist writing results: %s", ifdb
+                )
+            except Exception as err:
+                LOG.error(f"Failed to send metrics to InfluxDB due to error: %s", err)
             else:
                 LOG.debug("Metrics sent to influx: %s", metrics)
 
