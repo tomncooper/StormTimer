@@ -88,9 +88,9 @@ public class TimerSpout implements IRichSpout {
 			Values outputTuple = new Values(System.currentTimeMillis(), uuid, System.nanoTime(),
 					System.currentTimeMillis(), messageTimestamp, path);
 
-		for (String streamName : outputStreams) {
-			collector.emit(streamName, outputTuple, uuid);
-		}
+			for (String streamName : outputStreams) {
+				collector.emit(streamName, outputTuple, uuid);
+			}
 
 		}
 

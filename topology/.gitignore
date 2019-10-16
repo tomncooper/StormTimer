@@ -8,3 +8,6 @@ target/*
 /.apt_generated_tests/
 
 *.pdf
+
+*.iml
+*.idea/
