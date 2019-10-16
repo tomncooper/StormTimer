@@ -28,7 +28,6 @@ def process_payload(payload: str, kafka_ts_value: int) -> List[METRIC]:
     path_message = json.loads(payload)
 
     kafka_diff: int = kafka_ts_value - path_message["originTimestamp"]
-    storm_ns_ms: float = path_message["stormNanoLatencyMs"]
     storm_ms_ms: float = path_message["stormMilliLatencyMs"]
 
     LOG.debug(
@@ -62,11 +61,7 @@ def process_payload(payload: str, kafka_ts_value: int) -> List[METRIC]:
             "sink_component": sink_comp,
             "sink_task": int(sink_task),
         },
-        "fields": {
-            "ns_latency_ms": storm_ns_ms,
-            "ms_latency_ms": storm_ms_ms,
-            "path": path_str,
-        },
+        "fields": {"ms_latency_ms": storm_ms_ms, "path": path_str},
     }
 
     return [kafka_metric, e2e_metric]
@@ -101,7 +96,10 @@ def run(kafka_consumer: Consumer, influx_client: InfluxDBClient) -> None:
 
             payload = msg.value().decode("utf-8")
 
-            metrics: List[METRIC] = process_payload(payload, kafka_ts_value)
+            try:
+                metrics: List[METRIC] = process_payload(payload, kafka_ts_value)
+            except Exception as proc_error:
+                LOG.error("Error processing message payload: %s", str(proc_error))
 
             try:
                 influx_client.write_points(metrics)

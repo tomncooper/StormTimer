@@ -70,8 +70,6 @@ public class PathBoltWindowed extends BaseWindowedBolt {
 
 		List<Tuple> inputs = inputWindow.get();
 
-		Tuple randomSourceTuple = inputs.get(random.nextInt(inputs.size()));
-
 		Map<Integer, List<PathMessage>> spoutPathMessages = new HashMap<>();
 		Map<Integer, List<Long>> spoutEntryTimestamps = new HashMap<>();
 
@@ -103,6 +101,10 @@ public class PathBoltWindowed extends BaseWindowedBolt {
 		    List<Long> spoutEntryTs = spoutEntryTimestamps.get(spoutTask);
 			long avgEntryTs = spoutEntryTs.stream().mapToLong(i->i).sum() / spoutEntryTs.size();
 
+			//System.out.println("\n\n" + spoutEntryTs.size() + " Timestamps for Spout task " + spoutTask + "\n");
+			//System.out.println(spoutEntryTs);
+			//System.out.println("Average entry timestamp: " + avgEntryTs);
+
 			// Choose a path at random from all the paths of tuple from this spout task
 			List<PathMessage> spoutPathsList = spoutPathMessages.get(spoutTask);
 			PathMessage newPathMsg = spoutPathsList.get(random.nextInt(spoutPathsList.size()));
@@ -119,8 +121,12 @@ public class PathBoltWindowed extends BaseWindowedBolt {
 			Values outputTuple = new Values(System.currentTimeMillis(), key, avgEntryTs, pathMessageStr);
 			collector.emit(outputStreamName, outputTuple);
 		}
-		tracer.addCPULatency(randomSourceTuple, cpuTimer.stopTimer());
 
+		for (Tuple input : inputs) {
+			collector.ack(input);
+		}
+
+		tracer.addCPULatency(inputs.get(random.nextInt(inputs.size())), cpuTimer.stopTimer());
 		// Update the window execute latency
 		double winExLatencyMs = System.currentTimeMillis() - startTimeMs;
 		windowLatency.update(winExLatencyMs);

@@ -50,7 +50,6 @@ public class PathMessage {
 	}
 
 	public int getSpoutTaskID() {
-		return 0;
+		return Integer.valueOf(path[0].split(":")[1]) ;
 	}
-
 }
