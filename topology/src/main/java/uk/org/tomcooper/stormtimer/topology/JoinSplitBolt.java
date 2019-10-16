@@ -78,10 +78,8 @@ public class JoinSplitBolt extends BaseWindowedBolt {
 
 			tracer.addTransfer(input, startTimeMs - input.getLongByField("timestamp"));
 			
-			long entryNanoTimestamp = input.getLongByField("entryNanoTimestamp");
 			long entryMilliTimestamp = input.getLongByField("entryMilliTimestamp");
 			
-			nanoTotal += entryNanoTimestamp;
 			milliTotal += entryMilliTimestamp;
 			
 			String inputStream = input.getSourceStreamId();
@@ -95,7 +93,6 @@ public class JoinSplitBolt extends BaseWindowedBolt {
 			
 		}
 		
-		long avgNanoTimestamp = nanoTotal / inputs.size();
 		long avgMilliTimestamp = milliTotal / inputs.size();
 		
         // Add the current task to the path within the path message
@@ -106,7 +103,7 @@ public class JoinSplitBolt extends BaseWindowedBolt {
 		String newPathMessageStr = gson.toJson(pathMsg);	
 
 		String key = keyGen.chooseKey();
-		Values outputTuple = new Values(System.currentTimeMillis(), key, avgNanoTimestamp, avgMilliTimestamp, newPathMessageStr);	
+		Values outputTuple = new Values(System.currentTimeMillis(), key, avgMilliTimestamp, newPathMessageStr);
 
 		if(simple) {
 			collector.emit(outStream1Name, outputTuple);			
@@ -149,8 +146,8 @@ public class JoinSplitBolt extends BaseWindowedBolt {
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		declarer.declareStream(outStream1Name, new Fields("timestamp", "key", "entryNanoTimestamp", "entryMilliTimestamp", "pathMessage"));
-		declarer.declareStream(outStream2Name, new Fields("timestamp", "key", "entryNanoTimestamp", "entryMilliTimestamp", "pathMessage"));
+		declarer.declareStream(outStream1Name, new Fields("timestamp", "key", "entryMilliTimestamp", "pathMessage"));
+		declarer.declareStream(outStream2Name, new Fields("timestamp", "key", "entryMilliTimestamp", "pathMessage"));
 	}
 		
 

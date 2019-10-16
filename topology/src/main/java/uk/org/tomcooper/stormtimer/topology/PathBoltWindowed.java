@@ -1,5 +1,8 @@
 package uk.org.tomcooper.stormtimer.topology;
 
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -50,7 +53,7 @@ public class PathBoltWindowed extends BaseWindowedBolt {
 		tracer = new TracerMetricManager(stormConf, context);
 		cpuTimer = new CPULatencyTimer();
 		taskID = context.getThisTaskId();
-		name = context.getComponentId(taskID);
+		name = context.getThisComponentId();
 
 		windowLatency = new ReducedMetric(new MeanReducer());
 
@@ -64,60 +67,69 @@ public class PathBoltWindowed extends BaseWindowedBolt {
 	public void execute(TupleWindow inputWindow) {
 		cpuTimer.startTimer(Thread.currentThread().getId());
 		long startTimeMs = System.currentTimeMillis();
-		long startTime = System.nanoTime();
 
 		List<Tuple> inputs = inputWindow.get();
 
 		Tuple randomSourceTuple = inputs.get(random.nextInt(inputs.size()));
 
-		long nanoTotal = 0;
-		long milliTotal = 0;
+		Map<Integer, List<PathMessage>> spoutPathMessages = new HashMap<>();
+		Map<Integer, List<Long>> spoutEntryTimestamps = new HashMap<>();
 
 		for (Tuple input : inputs) {
 
 			tracer.addTransfer(input, startTimeMs - input.getLongByField("timestamp"));
 
-			long entryNanoTimestamp = input.getLongByField("entryNanoTimestamp");
-			long entryMilliTimestamp = input.getLongByField("entryMilliTimestamp");
-
-			nanoTotal += entryNanoTimestamp;
-			milliTotal += entryMilliTimestamp;
-		}
-
-		long avgNanoTimestamp = nanoTotal / inputs.size();
-		long avgMilliTimestamp = milliTotal / inputs.size();
-
-		String pathMessageStr;
-		try {
-			pathMessageStr = PathMessageBuilder.createPathMessageStr(name, taskID, randomSourceTuple);
-
-		} catch (IllegalArgumentException err) {
-
-			String pathMessage = randomSourceTuple.getStringByField("pathMessage");
-
+			// Deserialise the path message so we can extract the spout information
 			Gson gson = new Gson();
-			PathMessage pathMsg = gson.fromJson(pathMessage, PathMessage.class);
+			PathMessage pathMsg = gson.fromJson(input.getStringByField("pathMessage"), PathMessage.class);
 
-			String newPathElement = name + ":" + taskID;
-			pathMsg.addPathElement(newPathElement);
-			pathMessageStr = gson.toJson(pathMsg);
+			int spoutTask = pathMsg.getSpoutTaskID();
+
+			// Add the entry timestamp for this tuple to the list for the relevant source spout
+			List<Long> spoutTsList = spoutEntryTimestamps.getOrDefault(spoutTask, new ArrayList<>());
+			spoutTsList.add(input.getLongByField("entryMilliTimestamp"));
+			spoutEntryTimestamps.put(spoutTask, spoutTsList);
+
+			// Store the path message for later use
+			List<PathMessage> spoutPathMessageList = spoutPathMessages.getOrDefault(spoutTask, new ArrayList<>());
+			spoutPathMessageList.add(pathMsg);
+			spoutPathMessages.put(spoutTask, spoutPathMessageList);
 		}
 
-		String key = keyGen.chooseKey();
-		Values outputTuple = new Values(System.currentTimeMillis(), key, avgNanoTimestamp, avgMilliTimestamp,
-				pathMessageStr);
-		collector.emit(outputStreamName, outputTuple);
+		// Now we create an output tuple for each spout Task ID we have seen
+		for(Integer spoutTask: spoutEntryTimestamps.keySet()) {
+
+			// Average the entry timestamps for tuples from this spout task
+		    List<Long> spoutEntryTs = spoutEntryTimestamps.get(spoutTask);
+			long avgEntryTs = spoutEntryTs.stream().mapToLong(i->i).sum() / spoutEntryTs.size();
+
+			// Choose a path at random from all the paths of tuple from this spout task
+			List<PathMessage> spoutPathsList = spoutPathMessages.get(spoutTask);
+			PathMessage newPathMsg = spoutPathsList.get(random.nextInt(spoutPathsList.size()));
+
+			// Create new PathMessage
+			newPathMsg.setOriginTimestamp(avgEntryTs);
+			newPathMsg.addPathElement(name + ":" + taskID);
+
+			// Serialise the new path message
+			Gson gson = new Gson();
+			String pathMessageStr = gson.toJson(newPathMsg);
+
+			String key = keyGen.chooseKey();
+			Values outputTuple = new Values(System.currentTimeMillis(), key, avgEntryTs, pathMessageStr);
+			collector.emit(outputStreamName, outputTuple);
+		}
 		tracer.addCPULatency(randomSourceTuple, cpuTimer.stopTimer());
 
 		// Update the window execute latency
-		double winExLatencyMs = (System.nanoTime() - startTime) / 1000000.0;
+		double winExLatencyMs = System.currentTimeMillis() - startTimeMs;
 		windowLatency.update(winExLatencyMs);
 	}
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
 		declarer.declareStream(outputStreamName,
-				new Fields("timestamp", "key", "entryNanoTimestamp", "entryMilliTimestamp", "pathMessage"));
+				new Fields("timestamp", "key", "entryMilliTimestamp", "pathMessage"));
 	}
 
 	@Override

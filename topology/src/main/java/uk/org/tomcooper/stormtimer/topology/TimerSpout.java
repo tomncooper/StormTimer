@@ -84,8 +84,7 @@ public class TimerSpout implements IRichSpout {
 			String uuid = record.value();
 			String path = name + ":" + taskID;
 			long messageTimestamp = record.timestamp();
-			Values outputTuple = new Values(System.currentTimeMillis(), uuid, System.nanoTime(),
-					System.currentTimeMillis(), messageTimestamp, path);
+			Values outputTuple = new Values(System.currentTimeMillis(), uuid, System.currentTimeMillis(), messageTimestamp, path);
 
 			for (String streamName : outputStreams) {
 				collector.emit(streamName, outputTuple, uuid);
@@ -107,7 +106,7 @@ public class TimerSpout implements IRichSpout {
 
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
 		for (String streamName : outputStreams) {
-			declarer.declareStream(streamName, new Fields("timestamp", "uuid", "entryNanoTimestamp",
+			declarer.declareStream(streamName, new Fields("timestamp", "uuid",
 					"entryMilliTimestamp", "messageTimestamp", "path"));
 		}
 	}

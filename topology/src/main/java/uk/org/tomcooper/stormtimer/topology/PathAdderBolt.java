@@ -51,10 +51,9 @@ public class PathAdderBolt implements IRichBolt {
 
 		String key = keyGen.chooseKey();
 
-		long entryNanoTimestamp = input.getLongByField("entryNanoTimestamp");
 		long entryMilliTimestamp = input.getLongByField("entryMilliTimestamp");
 
-		Values outputTuple = new Values(System.currentTimeMillis(), key, entryNanoTimestamp, entryMilliTimestamp, pathMessageStr);
+		Values outputTuple = new Values(System.currentTimeMillis(), key, entryMilliTimestamp, pathMessageStr);
 
 		collector.emit("pathAddedMessages", input, outputTuple);
 
@@ -70,7 +69,7 @@ public class PathAdderBolt implements IRichBolt {
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		declarer.declareStream("pathAddedMessages", new Fields("timestamp", "key", "entryNanoTimestamp", "entryMilliTimestamp", "pathMessage"));
+		declarer.declareStream("pathAddedMessages", new Fields("timestamp", "key", "entryMilliTimestamp", "pathMessage"));
 
 	}
 

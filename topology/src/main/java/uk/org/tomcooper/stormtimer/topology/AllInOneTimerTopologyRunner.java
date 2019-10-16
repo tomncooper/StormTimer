@@ -36,7 +36,7 @@ public class AllInOneTimerTopologyRunner {
 		int numTasks = 16;
 		int multiplierMin = 1;
 		int multiplierMax = 20;
-		int multiplierMean = 10;
+		int multiplierMean = 20;
 		double multiplierSTD = 1.0;
 		int metricsBucketPeriod = 2;
 

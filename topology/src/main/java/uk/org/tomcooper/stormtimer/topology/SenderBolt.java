@@ -67,10 +67,7 @@ public class SenderBolt implements IRichBolt {
 		String newPathElement = name + ":" + taskID;
 		pathMsg.addPathElement(newPathElement);	
 
-		long nanoLatencyNs = System.nanoTime() - input.getLongByField("entryNanoTimestamp");
-		double nanoLatencyMs = ((double) nanoLatencyNs) / 1000000.0;
 		long milliLatencyMs = System.currentTimeMillis() - input.getLongByField("entryMilliTimestamp");
-		pathMsg.setStormNanoLatencyMs(nanoLatencyMs);
 		pathMsg.setStormMilliLatencyMs((double) milliLatencyMs);
 
 		String pathMessage = gson.toJson(pathMsg);

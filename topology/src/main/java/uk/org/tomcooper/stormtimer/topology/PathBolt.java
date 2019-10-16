@@ -50,10 +50,9 @@ public class PathBolt implements IRichBolt {
 		String pathMessage = PathMessageBuilder.createPathMessageStr(name, taskID, input);
 		String key = keyGen.chooseKey();
 
-		long entryNanoTimestamp = input.getLongByField("entryNanoTimestamp");
 		long entryMilliTimestamp = input.getLongByField("entryMilliTimestamp");
 
-		Values outputTuple = new Values(System.currentTimeMillis(), key, entryNanoTimestamp, entryMilliTimestamp, pathMessage);
+		Values outputTuple = new Values(System.currentTimeMillis(), key, entryMilliTimestamp, pathMessage);
 
 		collector.emit(outputStreamName, input, outputTuple);
 
@@ -69,7 +68,7 @@ public class PathBolt implements IRichBolt {
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		declarer.declareStream(outputStreamName, new Fields("timestamp", "key", "entryNanoTimestamp", "entryMilliTimestamp", "pathMessage"));
+		declarer.declareStream(outputStreamName, new Fields("timestamp", "key", "entryMilliTimestamp", "pathMessage"));
 
 	}
 

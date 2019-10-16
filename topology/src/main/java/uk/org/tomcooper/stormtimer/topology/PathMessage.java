@@ -16,7 +16,6 @@ public class PathMessage {
 
 	private String messageID;
 	private long originTimestamp;
-	private double stormNanoLatencyMs;
 	private double stormMilliLatencyMs;
 	private String[] path;
 
@@ -42,20 +41,16 @@ public class PathMessage {
 
 	}
 
-	public double getStormNanoLatencyMs() {
-		return stormNanoLatencyMs;
-	}
-
-	public void setStormNanoLatencyMs(double stormNanoLatencyMs) {
-		this.stormNanoLatencyMs = stormNanoLatencyMs;
-	}
-
 	public double getStormMilliLatencyMs() {
 		return stormMilliLatencyMs;
 	}
 
 	public void setStormMilliLatencyMs(double stormMilliLatencyMs) {
 		this.stormMilliLatencyMs = stormMilliLatencyMs;
+	}
+
+	public int getSpoutTaskID() {
+		return 0;
 	}
 
 }
