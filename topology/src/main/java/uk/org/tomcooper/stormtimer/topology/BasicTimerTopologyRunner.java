@@ -20,6 +20,10 @@ public class BasicTimerTopologyRunner {
 
 		conf.put("topology.builtin.metrics.bucket.size.secs", metricsBucketPeriod);
 
+		//Set the disruptor flush interval and batch size
+		//conf.put("topology.disruptor.batch.timeout.millis", 1000);
+		//conf.put("topology.disruptor.batch.size", 100);
+
 		// This is really important! Will need to see the effect on accuracy using a
 		// lower sampling rate. It is unlikely
 		// that you would run a sampling rate of 1.0 in a production environment due to

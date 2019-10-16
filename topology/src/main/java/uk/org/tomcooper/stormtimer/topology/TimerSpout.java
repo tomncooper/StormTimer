@@ -45,6 +45,11 @@ public class TimerSpout implements IRichSpout {
 
 		this.outputStreamName = outputStream;
 		this.numOutputStreams = numOutputStreams;
+		outputStreams = new ArrayList<String>();
+
+		for (int i = 0; i < numOutputStreams; i++) {
+			outputStreams.add(outputStreamName + i);
+		}
 
 	}
 
@@ -53,12 +58,6 @@ public class TimerSpout implements IRichSpout {
 		this.collector = collector;
 		taskID = context.getThisTaskId();
 		name = context.getComponentId(taskID);
-
-		outputStreams = new ArrayList<String>();
-
-		for (int i = 0; i < numOutputStreams; i++) {
-			outputStreams.add(outputStreamName + i);
-		}
 
 	}
 
