@@ -75,7 +75,12 @@ def process_payload(payload: str, kafka_ts_value: int) -> List[METRIC]:
 def run(kafka_consumer: Consumer, influx_client: InfluxDBClient) -> None:
 
     while True:
-        msg: Message = kafka_consumer.poll(1.0)
+
+        try:
+            msg: Message = kafka_consumer.poll(1.0)
+        except Exception as read_err:
+            LOG.error("Polling Kafka resulted in error: %s", str(read_err))
+            continue
 
         if msg is None:
             continue

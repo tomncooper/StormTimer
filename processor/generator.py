@@ -66,12 +66,18 @@ class MessageGenerator(Process):
 
         while not self.exit.is_set():
             msg_id: uuid.UUID = uuid.uuid4()
-            producer.poll(1)
-            producer.produce(
-                self.topic, str(msg_id).encode("utf-8"), callback=self.delivery_report
-            )
-            if self.emission_delay:
-                time.sleep(self.emission_delay)
+            try:
+                producer.poll(1)
+                producer.produce(
+                    self.topic,
+                    str(msg_id).encode("utf-8"),
+                    callback=self.delivery_report,
+                )
+            except Exception as err:
+                LOG.error("Message sending failed with error: %s", str(err))
+            else:
+                if self.emission_delay:
+                    time.sleep(self.emission_delay)
 
         LOG.info(
             "Generator: %s received stop signal, flushing remaining messages", self.name
