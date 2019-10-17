@@ -54,7 +54,7 @@ public class AllInOneTimerTopologyRunner {
 		String pathWindowerName = "WindowedPathBolt";
 		String pathWindowerOutputStream = "Stream3";
 		builder.setBolt(pathWindowerName,
-				new PathBoltWindowed(pathWindowerOutputStream).withTumblingWindow(windowCount), 2).setNumTasks(numTasks)
+				new PathBoltWindowedEmitAll(pathWindowerOutputStream).withTumblingWindow(windowCount), 2).setNumTasks(numTasks)
 				.fieldsGrouping(pathMultiplierName, pathMultiplierOutputStream, new Fields("key"));
 
 		String senderBoltName = "SenderBolt";
