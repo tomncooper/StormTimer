@@ -54,12 +54,14 @@ public class AllInOneTimerTopologyRunner {
 		String pathWindowerName = "WindowedPathBolt";
 		String pathWindowerOutputStream = "Stream3";
 		builder.setBolt(pathWindowerName,
-				new PathBoltWindowedEmitAll(pathWindowerOutputStream).withTumblingWindow(windowCount), 2).setNumTasks(numTasks)
-				.fieldsGrouping(pathMultiplierName, pathMultiplierOutputStream, new Fields("key"));
+				new PathBoltWindowedEmitOneRandom(pathWindowerOutputStream).withTumblingWindow(windowCount), 2).setNumTasks(numTasks)
+				//.fieldsGrouping(pathMultiplierName, pathMultiplierOutputStream, new Fields("key"));
+				.shuffleGrouping(pathMultiplierName, pathMultiplierOutputStream);
 
 		String senderBoltName = "SenderBolt";
 		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
-				.fieldsGrouping(pathWindowerName, pathWindowerOutputStream, new Fields("key"));
+				//.fieldsGrouping(pathWindowerName, pathWindowerOutputStream, new Fields("key"));
+				.shuffleGrouping(pathWindowerName, pathWindowerOutputStream);
 
 		StormTopology topology = builder.createTopology();
 
@@ -68,6 +70,7 @@ public class AllInOneTimerTopologyRunner {
 			int numWorkers = 1;
 
 			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);
+			conf.setMessageTimeoutSecs(20);
 			ILocalCluster cluster = new LocalCluster();
 			System.out.println("\n\n######\nSubmitting Topology to Local " + "Cluster\n######\n\n");
 

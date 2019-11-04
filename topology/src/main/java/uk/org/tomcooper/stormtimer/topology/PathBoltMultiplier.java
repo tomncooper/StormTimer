@@ -79,7 +79,7 @@ public class PathBoltMultiplier implements IRichBolt {
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
 		declarer.declareStream(outputStreamName,
-				new Fields("timestamp", "key", "entryNanoTimestamp", "pathMessage"));
+				new Fields("timestamp", "key", "entryMilliTimestamp", "pathMessage"));
 	}
 
 	@Override

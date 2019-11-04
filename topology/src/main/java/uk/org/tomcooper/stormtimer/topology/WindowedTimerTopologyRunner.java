@@ -10,7 +10,6 @@ import org.apache.storm.generated.InvalidTopologyException;
 import org.apache.storm.generated.StormTopology;
 import org.apache.storm.topology.TopologyBuilder;
 import org.apache.storm.topology.base.BaseWindowedBolt.Count;
-import org.apache.storm.tuple.Fields;
 
 public class WindowedTimerTopologyRunner {
 
@@ -45,7 +44,7 @@ public class WindowedTimerTopologyRunner {
 				.setNumTasks(numTasks);
 
 		String pathBoltName = "WindowedPathBolt";
-		builder.setBolt(pathBoltName, new PathBoltWindowed().withTumblingWindow(windowCount), 2).setNumTasks(numTasks)
+		builder.setBolt(pathBoltName, new PathBoltWindowedEmitBySpout().withTumblingWindow(windowCount), 2).setNumTasks(numTasks)
 				.shuffleGrouping(spoutName, spoutOutStreamName + "0");
 
 		String senderBoltName = "SenderBolt";

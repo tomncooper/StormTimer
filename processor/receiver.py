@@ -11,6 +11,7 @@ from confluent_kafka import (
     Message,
     TIMESTAMP_LOG_APPEND_TIME,
     TIMESTAMP_NOT_AVAILABLE,
+    KafkaError,
 )
 
 from influxdb import InfluxDBClient
@@ -72,45 +73,63 @@ def run(kafka_consumer: Consumer, influx_client: InfluxDBClient) -> None:
     while True:
 
         try:
-            msg: Message = kafka_consumer.poll(1.0)
+            msgs: List[Message] = kafka_consumer.consume(num_messages=100)
+        except KafkaError as kafka_err:
+            LOG.error(
+                "Attempting to consume from Kafka broker resulted in Kafka error: %s",
+                str(kafka_err),
+            )
+            continue
         except Exception as read_err:
-            LOG.error("Polling Kafka resulted in error: %s", str(read_err))
+            LOG.error(
+                "Consuming from Kafka broker resulted in error (%s): %s",
+                str(type(read_err)),
+                str(read_err),
+            )
             continue
 
-        if msg is None:
-            continue
-        elif msg.error():
-            LOG.error("Kafka Consumer error: %s", msg.error())
+        if not msgs:
+            LOG.debug("Returned list from kafka consumer was empty")
             continue
         else:
-            kafka_ts_type: int
-            kafka_ts_value: int
-            kafka_ts_type, kafka_ts_value = msg.timestamp()
+            LOG.debug("Fetched %d messages from Kafka broker", len(msgs))
 
-            if kafka_ts_type == TIMESTAMP_NOT_AVAILABLE:
-                LOG.error("No time stamp available")
+        for msg in msgs:
+            if msg.error():
+                LOG.error("Kafka message error code: %s", msg.error().str())
                 continue
-            elif kafka_ts_type != TIMESTAMP_LOG_APPEND_TIME:
-                LOG.error("Time stamp is not log append time")
-                continue
-
-            payload = msg.value().decode("utf-8")
-
-            try:
-                metrics: List[METRIC] = process_payload(payload, kafka_ts_value)
-            except Exception as proc_error:
-                LOG.error("Error processing message payload: %s", str(proc_error))
-
-            try:
-                influx_client.write_points(metrics)
-            except InfluxDBServerError as ifdb:
-                LOG.error(
-                    "Received error from InfluxDB whist writing results: %s", ifdb
-                )
-            except Exception as err:
-                LOG.error(f"Failed to send metrics to InfluxDB due to error: %s", err)
             else:
-                LOG.debug("Metrics sent to influx: %s", metrics)
+                kafka_ts_type: int
+                kafka_ts_value: int
+                kafka_ts_type, kafka_ts_value = msg.timestamp()
+
+                if kafka_ts_type == TIMESTAMP_NOT_AVAILABLE:
+                    LOG.error("No time stamp available")
+                    continue
+                elif kafka_ts_type != TIMESTAMP_LOG_APPEND_TIME:
+                    LOG.error("Time stamp is not log append time")
+                    continue
+
+                payload = msg.value().decode("utf-8")
+
+                try:
+                    metrics: List[METRIC] = process_payload(payload, kafka_ts_value)
+                except Exception as proc_error:
+                    LOG.error("Error processing message payload: %s", str(proc_error))
+                else:
+                    try:
+                        influx_client.write_points(metrics)
+                    except InfluxDBServerError as ifdb:
+                        LOG.error(
+                            "Received error from InfluxDB whist writing results: %s",
+                            ifdb,
+                        )
+                    except Exception as err:
+                        LOG.error(
+                            f"Failed to send metrics to InfluxDB due to error: %s", err
+                        )
+                    else:
+                        LOG.debug("Metrics sent to influx: %s", metrics)
 
 
 if __name__ == "__main__":
@@ -130,7 +149,7 @@ if __name__ == "__main__":
     KAF_CON: Consumer = Consumer(
         {
             "bootstrap.servers": CONFIG["kafka"]["server"],
-            "group.id": str(uuid.uuid4()),
+            "group.id": "stormtimer.receiver",
             "auto.offset.reset": "latest",
             "enable.auto.commit": "false",
         },

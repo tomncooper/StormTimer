@@ -47,11 +47,14 @@ public class MultiplierTimerTopologyRunner {
 		String pathBoltName = "MultiPathBolt";
 		builder.setBolt(pathBoltName,
 				new PathBoltMultiplier(multiplierMin, multiplierMax, multiplierMean, multiplierSTD), 2)
-				.setNumTasks(numTasks).shuffleGrouping(spoutName, spoutOutStreamName + "0");
+				.setNumTasks(numTasks)
+				.shuffleGrouping(spoutName, spoutOutStreamName + "0");
 
 		String senderBoltName = "SenderBolt";
-		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
-				.fieldsGrouping(pathBoltName, "pathMessages", new Fields("key"));
+		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2)
+				.setNumTasks(numTasks)
+				//.fieldsGrouping(pathBoltName, "pathMessages", new Fields("key"));
+				.shuffleGrouping(pathBoltName, "pathMessages");
 
 		StormTopology topology = builder.createTopology();
 

@@ -1,12 +1,6 @@
 package uk.org.tomcooper.stormtimer.topology;
 
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-
+import com.google.gson.Gson;
 import org.apache.storm.metric.api.MeanReducer;
 import org.apache.storm.metric.api.ReducedMetric;
 import org.apache.storm.task.OutputCollector;
@@ -17,13 +11,12 @@ import org.apache.storm.tuple.Fields;
 import org.apache.storm.tuple.Tuple;
 import org.apache.storm.tuple.Values;
 import org.apache.storm.windowing.TupleWindow;
-
-import com.google.gson.Gson;
-
 import uk.org.tomcooper.tracer.metrics.CPULatencyTimer;
 import uk.org.tomcooper.tracer.metrics.TracerMetricManager;
 
-public class PathBoltWindowed extends BaseWindowedBolt {
+import java.util.*;
+
+public class PathBoltWindowedEmitOneRandom extends BaseWindowedBolt {
 
 	private static final long serialVersionUID = -5499409182647305065L;
 	private Random random;
@@ -36,11 +29,11 @@ public class PathBoltWindowed extends BaseWindowedBolt {
 	private KeyGenerator keyGen;
 	private String outputStreamName;
 
-	public PathBoltWindowed(String outputStreamName) {
+	public PathBoltWindowedEmitOneRandom(String outputStreamName) {
 		this.outputStreamName = outputStreamName;
 	}
 
-	public PathBoltWindowed() {
+	public PathBoltWindowedEmitOneRandom() {
 		this("pathMessages");
 	}
 
@@ -70,8 +63,8 @@ public class PathBoltWindowed extends BaseWindowedBolt {
 
 		List<Tuple> inputs = inputWindow.get();
 
-		Map<Integer, List<PathMessage>> spoutPathMessages = new HashMap<>();
-		Map<Integer, List<Long>> spoutEntryTimestamps = new HashMap<>();
+		Map<String, List<PathMessage>> pathPathMessages = new HashMap<>();
+		Map<String, List<Long>> pathEntryTimestamps = new HashMap<>();
 
 		for (Tuple input : inputs) {
 
@@ -81,50 +74,40 @@ public class PathBoltWindowed extends BaseWindowedBolt {
 			Gson gson = new Gson();
 			PathMessage pathMsg = gson.fromJson(input.getStringByField("pathMessage"), PathMessage.class);
 
-			int spoutTask = pathMsg.getSpoutTaskID();
+			String path = pathMsg.getPath().toString();
 
-			// Add the entry timestamp for this tuple to the list for the relevant source spout
-			List<Long> spoutTsList = spoutEntryTimestamps.getOrDefault(spoutTask, new ArrayList<>());
-			spoutTsList.add(input.getLongByField("entryMilliTimestamp"));
-			spoutEntryTimestamps.put(spoutTask, spoutTsList);
+			// Add the entry timestamp for this tuple to the list for the relevant path
+			List<Long> pathTsList = pathEntryTimestamps.getOrDefault(path, new ArrayList<>());
+			pathTsList.add(input.getLongByField("entryMilliTimestamp"));
+			pathEntryTimestamps.put(path, pathTsList);
 
 			// Store the path message for later use
-			List<PathMessage> spoutPathMessageList = spoutPathMessages.getOrDefault(spoutTask, new ArrayList<>());
-			spoutPathMessageList.add(pathMsg);
-			spoutPathMessages.put(spoutTask, spoutPathMessageList);
+			List<PathMessage> pathPathMessageList = pathPathMessages.getOrDefault(path, new ArrayList<>());
+			pathPathMessageList.add(pathMsg);
+			pathPathMessages.put(path, pathPathMessageList);
 		}
 
-		// Now we create an output tuple for each spout Task ID we have seen
-		for(Integer spoutTask: spoutEntryTimestamps.keySet()) {
+		// Now we create an output tuple by choosing a path at random
+		List<String> pathKeys = new ArrayList<String>(pathPathMessages.keySet());
+		String randomPathKey = pathKeys.get(random.nextInt(pathKeys.size()));
 
-			// Average the entry timestamps for tuples from this spout task
-		    List<Long> spoutEntryTs = spoutEntryTimestamps.get(spoutTask);
-			long avgEntryTs = spoutEntryTs.stream().mapToLong(i->i).sum() / spoutEntryTs.size();
+		// Average the entry timestamps for tuples from this spout task
+		List<Long> pathEntryTs = pathEntryTimestamps.get(randomPathKey);
+		long avgEntryTs = pathEntryTs.stream().mapToLong(i->i).sum() / pathEntryTs.size();
 
-			//System.out.println("\n\n" + spoutEntryTs.size() + " Timestamps for Spout task " + spoutTask + "\n");
-			//System.out.println(spoutEntryTs);
-			//System.out.println("Average entry timestamp: " + avgEntryTs);
+		PathMessage randomPathMessage = pathPathMessages.get(randomPathKey).get(0);
 
-			// Choose a path at random from all the paths of tuple from this spout task
-			List<PathMessage> spoutPathsList = spoutPathMessages.get(spoutTask);
-			PathMessage newPathMsg = spoutPathsList.get(random.nextInt(spoutPathsList.size()));
+		// Update the random PathMessage
+		randomPathMessage.setOriginTimestamp(avgEntryTs);
+		randomPathMessage.addPathElement(name + ":" + taskID);
 
-			// Create new PathMessage
-			newPathMsg.setOriginTimestamp(avgEntryTs);
-			newPathMsg.addPathElement(name + ":" + taskID);
+		// Serialise the new path message
+		Gson gson = new Gson();
+		String pathMessageStr = gson.toJson(randomPathMessage);
 
-			// Serialise the new path message
-			Gson gson = new Gson();
-			String pathMessageStr = gson.toJson(newPathMsg);
-
-			String key = keyGen.chooseKey();
-			Values outputTuple = new Values(System.currentTimeMillis(), key, avgEntryTs, pathMessageStr);
-			collector.emit(outputStreamName, outputTuple);
-		}
-
-		for (Tuple input : inputs) {
-			collector.ack(input);
-		}
+		String key = keyGen.chooseKey();
+		Values outputTuple = new Values(System.currentTimeMillis(), key, avgEntryTs, pathMessageStr);
+		collector.emit(outputStreamName, outputTuple);
 
 		tracer.addCPULatency(inputs.get(random.nextInt(inputs.size())), cpuTimer.stopTimer());
 		// Update the window execute latency

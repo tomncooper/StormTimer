@@ -21,7 +21,7 @@ def create_parser() -> ArgumentParser:
 
 def setup_single_logging(debug: bool = False) -> Logger:
 
-    top_log: Logger = getLogger("stormtimer")
+    top_log: Logger = getLogger()
 
     if debug:
         level = DEBUG

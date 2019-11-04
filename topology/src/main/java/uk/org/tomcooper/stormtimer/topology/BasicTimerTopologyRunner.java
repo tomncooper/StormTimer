@@ -71,10 +71,15 @@ public class BasicTimerTopologyRunner {
 		String spoutOutStreamName = "kafkaMessages";
 		int numSpoutStreams = 1;
 		builder.setSpout(spoutName, new TimerSpout(kafkaServer, groupID, incomingTopic, spoutOutStreamName, numSpoutStreams), 2).setNumTasks(numTasks);
+
 		String pathBoltName = "PathBolt";
-		builder.setBolt(pathBoltName, new PathBolt(), 2).setNumTasks(numTasks).shuffleGrouping(spoutName, spoutOutStreamName + "0");
+		builder.setBolt(pathBoltName, new PathBolt(), 2)
+				.setNumTasks(numTasks)
+				.shuffleGrouping(spoutName, spoutOutStreamName + "0");
+
 		String senderBoltName = "SenderBolt";
-		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2).setNumTasks(numTasks)
+		builder.setBolt(senderBoltName, new SenderBolt(kafkaServer, outgoingTopic, async), 2)
+				.setNumTasks(numTasks)
 				.shuffleGrouping(pathBoltName, "pathMessages");
 
 		StormTopology topology = builder.createTopology();
