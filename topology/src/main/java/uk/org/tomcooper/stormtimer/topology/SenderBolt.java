@@ -37,6 +37,13 @@ public class SenderBolt implements IRichBolt {
 		props.setProperty("bootstrap.servers", kafkaServer);
 		props.setProperty("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
 		props.setProperty("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+		props.setProperty("enable.auto.commit", "false");
+		props.setProperty("auto.offset.reset", "latest");
+		props.setProperty("max.poll.records", "1");
+		props.setProperty("acks", "0");
+		props.setProperty("retries", "0");
+		props.setProperty("auto.offset.reset", "latest");
+		props.setProperty("group.id", "stormtimer.sender");
 
 		kafkaProperties = props;
 		this.topic = topic;
@@ -52,6 +59,7 @@ public class SenderBolt implements IRichBolt {
 		taskID = context.getThisTaskId();
 		name = context.getComponentId(taskID);
 
+		kafkaProperties.setProperty("client.id", "sender-" + taskID);
 		kafkaProducer = new KafkaProducer<String, String>(kafkaProperties);
 
 	}

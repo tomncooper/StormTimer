@@ -29,7 +29,7 @@ public class AllInOneTimerTopologyRunner {
 		TopologyBuilder builder = new TopologyBuilder();
 
 		String kafkaServer = "tncbroker.ukwest.cloudapp.azure.com:9092";
-		String groupID = "spout_group";
+		String groupID = "spout.group";
 		String incomingTopic = "beforeStorm";
 		String outgoingTopic = "afterStorm";
 

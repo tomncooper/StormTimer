@@ -2,6 +2,8 @@ import logging
 import json
 import uuid
 
+import datetime as dt
+
 from typing import List, Dict, Union
 from configparser import ConfigParser
 from argparse import ArgumentParser, Namespace
@@ -70,7 +72,20 @@ def process_payload(payload: str, kafka_ts_value: int) -> List[METRIC]:
 
 def run(kafka_consumer: Consumer, influx_client: InfluxDBClient) -> None:
 
+    time_limit: dt.timedelta = dt.timedelta(minutes=1)
+    last_download: dt.datetime = dt.datetime.now()
+
     while True:
+
+        time_since_last_download: dt.timedelta = dt.datetime.now() - last_download
+
+        if time_since_last_download >= time_limit:
+            delay_err: str = (
+                f"It has been {time_since_last_download} since the last download from "
+                f"the broker"
+            )
+            LOG.warning(delay_err)
+            raise RuntimeError(delay_err)
 
         try:
             msgs: List[Message] = kafka_consumer.consume(num_messages=100)
@@ -87,17 +102,18 @@ def run(kafka_consumer: Consumer, influx_client: InfluxDBClient) -> None:
                 str(read_err),
             )
             continue
+        else:
+            last_download = dt.datetime.now()
 
         if not msgs:
             LOG.debug("Returned list from kafka consumer was empty")
             continue
         else:
-            LOG.debug("Fetched %d messages from Kafka broker", len(msgs))
+            LOG.info("Fetched %d messages from Kafka broker", len(msgs))
 
         for msg in msgs:
             if msg.error():
                 LOG.error("Kafka message error code: %s", msg.error().str())
-                continue
             else:
                 kafka_ts_type: int
                 kafka_ts_value: int
@@ -132,6 +148,24 @@ def run(kafka_consumer: Consumer, influx_client: InfluxDBClient) -> None:
                         LOG.debug("Metrics sent to influx: %s", metrics)
 
 
+def create_kafka_consumer(config, logger):
+
+    kafka_consumer: Consumer = Consumer(
+        {
+            "bootstrap.servers": config["kafka"]["server"],
+            "group.id": "stormtimer.receiver",
+            "client.id": "receiver",
+            "auto.offset.reset": "latest",
+            "enable.auto.commit": "false",
+        },
+        logger=logger,
+    )
+    topic_list: List[str] = [config["consumer"]["topic"]]
+    kafka_consumer.subscribe(topic_list)
+
+    return kafka_consumer
+
+
 if __name__ == "__main__":
 
     PARSER: ArgumentParser = create_parser()
@@ -146,16 +180,6 @@ if __name__ == "__main__":
         LOG.error(err_msg)
         raise FileNotFoundError(err_msg)
 
-    KAF_CON: Consumer = Consumer(
-        {
-            "bootstrap.servers": CONFIG["kafka"]["server"],
-            "group.id": "stormtimer.receiver",
-            "auto.offset.reset": "latest",
-            "enable.auto.commit": "false",
-        },
-        logger=ST_LOG,
-    )
-
     INFLUX_CLIENT: InfluxDBClient = InfluxDBClient(
         host=CONFIG["influx"]["server"],
         port=8086,
@@ -164,13 +188,18 @@ if __name__ == "__main__":
         database=CONFIG["influx"]["database"],
     )
 
-    topic_list: List[str] = [CONFIG["consumer"]["topic"]]
-
-    KAF_CON.subscribe(topic_list)
+    KAF_CON: Consumer = create_kafka_consumer(CONFIG, ST_LOG)
 
     try:
-        LOG.info("Processing messages from topics: %s", str(topic_list))
-        run(KAF_CON, INFLUX_CLIENT)
+
+        while True:
+            try:
+                LOG.info("Processing messages from broker")
+                run(KAF_CON, INFLUX_CLIENT)
+            except RuntimeError:
+                LOG.error("Restarting kafka consumer")
+                continue
+
     except KeyboardInterrupt:
         LOG.info("Keyboard interrupt signal receive. Closing connection")
         KAF_CON.close()
