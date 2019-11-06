@@ -16,8 +16,6 @@ from confluent_kafka import Producer
 
 from common import create_parser
 
-LOG: logging.Logger = logging.getLogger("stormtimer.generator")
-
 
 class MessageGenerator(Process):
     def __init__(
@@ -25,7 +23,9 @@ class MessageGenerator(Process):
         proc_name: str,
         kafka_server: str,
         topic: str,
+        log_queue: Queue,
         emission_delay: Optional[float] = None,
+        debug: bool = False,
     ):
 
         Process.__init__(self, name=proc_name)
@@ -34,20 +34,37 @@ class MessageGenerator(Process):
         self.topic: str = topic
         self.name: str = proc_name
         self.emission_delay: Optional[float] = emission_delay
+        self.setup_logging(log_queue, debug)
 
         self.exit: MP_Event = Event()
+
+    def setup_logging(self, queue: Queue, debug: bool):
+
+        self.log: logging.Logger = logging.getLogger(
+            f"stormtimer.generator.{self.name}"
+        )
+
+        if debug:
+            level = logging.DEBUG
+        else:
+            level = logging.INFO
+
+        self.queue_handler: QueueHandler = QueueHandler(queue)
+        self.log.handlers = []
+        self.log.addHandler(self.queue_handler)
+        self.log.setLevel(level)
 
     def delivery_report(self, err, msg):
         """ Called once for each message produced to indicate delivery result.
             Triggered by poll() or flush(). """
         if err is not None:
-            LOG.error(
+            self.log.error(
                 "Message delivery from Generator %s failed with error: %s",
                 self.name,
                 str(err),
             )
         else:
-            LOG.debug(
+            self.log.debug(
                 "Message from Generator %s delivered to %s [%d]",
                 self.name,
                 msg.topic(),
@@ -61,29 +78,32 @@ class MessageGenerator(Process):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         producer: Producer = Producer(
-            {"bootstrap.servers": self.server, "client.id": self.name}
+            {
+                "bootstrap.servers": self.server,
+                "client.id": self.name,
+                "acks": 0,
+                "retries": 0,
+            },
+            logger=self.log,
         )
+
+        producer.poll(1)
 
         while not self.exit.is_set():
             msg_id: uuid.UUID = uuid.uuid4()
             try:
-                producer.poll(1)
-                producer.produce(
-                    self.topic,
-                    str(msg_id).encode("utf-8"),
-                    callback=self.delivery_report,
-                )
+                producer.produce(self.topic, str(msg_id).encode("utf-8"))
             except Exception as err:
-                LOG.error("Message sending failed with error: %s", str(err))
+                self.log.error("Message sending failed with error: %s", str(err))
             else:
                 if self.emission_delay:
                     time.sleep(self.emission_delay)
 
-        LOG.info(
+        self.log.info(
             "Generator: %s received stop signal, flushing remaining messages", self.name
         )
         remaining: int = producer.flush(10)
-        LOG.info(
+        self.log.info(
             "Generator: %s stopped flushing with %d messages remaining in buffer",
             self.name,
             remaining,
@@ -94,7 +114,7 @@ def setup_multi_logging(
     queue: Queue, debug: bool = False
 ) -> Tuple[logging.Logger, QueueListener]:
 
-    top_log: logging.Logger = logging.getLogger("stormtimer")
+    top_log: logging.Logger = logging.getLogger()
 
     if debug:
         level = logging.DEBUG
@@ -149,29 +169,34 @@ if __name__ == "__main__":
     CONFIG.read(ARGS.config)
     if not CONFIG:
         err_msg: str = f"Could not open config file: {ARGS.config}"
-        LOG.error(err_msg)
+        ST_LOG.error(err_msg)
         raise FileNotFoundError(err_msg)
 
     TOPIC: str = CONFIG["producer"]["topic"]
-    LOG.info("Sending messages to topic: %s", TOPIC)
+    ST_LOG.info("Sending messages to topic: %s", TOPIC)
 
     PROCESSES: List[MessageGenerator] = []
     for i in range(ARGS.processes):
         generator: MessageGenerator = MessageGenerator(
-            f"Gen_{i}", CONFIG["kafka"]["server"], TOPIC, ARGS.emission_delay
+            f"Gen_{i}",
+            CONFIG["kafka"]["server"],
+            TOPIC,
+            QUEUE,
+            ARGS.emission_delay,
+            ARGS.debug,
         )
-        LOG.info("Starting Generator: %d", i)
+        ST_LOG.info("Starting Generator: %d", i)
         generator.start()
         PROCESSES.append(generator)
 
-    LOG.info("All generators started")
+    ST_LOG.info("All generators started")
 
     try:
         for process in PROCESSES:
             process.join()
     except KeyboardInterrupt:
         for i, process in enumerate(PROCESSES):
-            LOG.info("Stopping process %d", i)
+            ST_LOG.info("Stopping process %d", i)
             process.exit.set()
     finally:
         ST_LISTENER.stop()

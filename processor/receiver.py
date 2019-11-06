@@ -4,7 +4,7 @@ import uuid
 
 import datetime as dt
 
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional
 from configparser import ConfigParser
 from argparse import ArgumentParser, Namespace
 
@@ -73,97 +73,94 @@ def process_payload(payload: str, kafka_ts_value: int) -> List[METRIC]:
 def run(
     kafka_consumer: Consumer,
     influx_client: InfluxDBClient,
-    num_messages: int = 100,
-    timeout_secs: int = 60,
+    timeout_secs: int = 30,
+    update_count: int = 500,
 ) -> None:
 
-    time_limit: dt.timedelta = dt.timedelta(seconds=timeout_secs)
-    last_download: dt.datetime = dt.datetime.now()
+    count: int = 0
+    start_time: dt.datetime = dt.datetime.now()
 
     while True:
 
-        time_since_last_download: dt.timedelta = dt.datetime.now() - last_download
-
-        if time_since_last_download >= time_limit:
-            delay_err: str = (
-                f"It has been {time_since_last_download} since the last download from "
-                f"the broker"
-            )
-            LOG.warning(delay_err)
-            raise RuntimeError(delay_err)
-
         try:
-            msgs: List[Message] = kafka_consumer.consume(
-                num_messages=100, timeout=timeout_secs
-            )
+            msg: Optional[Message] = kafka_consumer.poll(timeout=timeout_secs)
         except KafkaError as kafka_err:
             LOG.error(
                 "Attempting to consume from Kafka broker resulted in Kafka error: %s",
                 str(kafka_err),
             )
-            raise RuntimeError(f"KafkaError received: {kafka_err}")
+            continue
         except Exception as read_err:
             LOG.error(
                 "Consuming from Kafka broker resulted in error (%s): %s",
                 str(type(read_err)),
                 str(read_err),
             )
-            raise RuntimeError(f"Error received: {read_err}")
+            continue
         else:
             last_download = dt.datetime.now()
 
-        if not msgs:
-            LOG.debug("Returned list from kafka consumer was empty")
+        if not msg:
+            LOG.warning("No messages available after %d seconds", timeout_secs)
             continue
+        elif msg.error():
+            LOG.error("Kafka message error code: %s", msg.error().str())
         else:
-            LOG.info("Fetched %d messages from Kafka broker", len(msgs))
+            kafka_ts_type: int
+            kafka_ts_value: int
+            kafka_ts_type, kafka_ts_value = msg.timestamp()
 
-        for msg in msgs:
-            if msg.error():
-                LOG.error("Kafka message error code: %s", msg.error().str())
+            if kafka_ts_type == TIMESTAMP_NOT_AVAILABLE:
+                LOG.error("No time stamp available")
+                continue
+            elif kafka_ts_type != TIMESTAMP_LOG_APPEND_TIME:
+                LOG.error("Time stamp is not log append time")
+                continue
+
+            payload = msg.value().decode("utf-8")
+
+            try:
+                metrics: List[METRIC] = process_payload(payload, kafka_ts_value)
+            except Exception as proc_error:
+                LOG.error("Error processing message payload: %s", str(proc_error))
             else:
-                kafka_ts_type: int
-                kafka_ts_value: int
-                kafka_ts_type, kafka_ts_value = msg.timestamp()
-
-                if kafka_ts_type == TIMESTAMP_NOT_AVAILABLE:
-                    LOG.error("No time stamp available")
-                    continue
-                elif kafka_ts_type != TIMESTAMP_LOG_APPEND_TIME:
-                    LOG.error("Time stamp is not log append time")
-                    continue
-
-                payload = msg.value().decode("utf-8")
-
                 try:
-                    metrics: List[METRIC] = process_payload(payload, kafka_ts_value)
-                except Exception as proc_error:
-                    LOG.error("Error processing message payload: %s", str(proc_error))
+                    influx_client.write_points(metrics)
+                except InfluxDBServerError as ifdb:
+                    LOG.error(
+                        "Received error from InfluxDB whist writing results: %s", ifdb
+                    )
+                except Exception as err:
+                    LOG.error(
+                        f"Failed to send metrics to InfluxDB due to error: %s", err
+                    )
                 else:
-                    try:
-                        influx_client.write_points(metrics)
-                    except InfluxDBServerError as ifdb:
-                        LOG.error(
-                            "Received error from InfluxDB whist writing results: %s",
-                            ifdb,
+                    LOG.debug("Metrics sent to influx: %s", metrics)
+                    if count >= update_count:
+                        diff: dt.timedelta = dt.datetime.now() - start_time
+                        rate: float = count / diff.total_seconds()
+
+                        LOG.info(
+                            "Processed %d messages in %f seconds (%f mps)",
+                            count,
+                            diff.total_seconds(),
+                            rate,
                         )
-                    except Exception as err:
-                        LOG.error(
-                            f"Failed to send metrics to InfluxDB due to error: %s", err
-                        )
+                        count = 0
+                        start_time = dt.datetime.now()
                     else:
-                        LOG.debug("Metrics sent to influx: %s", metrics)
+                        count += 1
 
 
-def create_kafka_consumer(config, logger):
+def create_kafka_consumer(config: ConfigParser, logger: logging.Logger, group_id: str):
 
     kafka_consumer: Consumer = Consumer(
         {
             "bootstrap.servers": config["kafka"]["server"],
-            "group.id": "stormtimer.receiver",
+            "group.id": group_id,
             "client.id": "receiver",
             "auto.offset.reset": "latest",
-            "enable.auto.commit": "false",
+            "enable.auto.commit": "true",
         },
         logger=logger,
     )
@@ -176,6 +173,32 @@ def create_kafka_consumer(config, logger):
 if __name__ == "__main__":
 
     PARSER: ArgumentParser = create_parser()
+    PARSER.add_argument(
+        "--group_name",
+        "-g",
+        required=True,
+        help="The group name to apply to the kafka consumer",
+    )
+    PARSER.add_argument(
+        "--timeout",
+        "-t",
+        required=True,
+        type=int,
+        help=(
+            "Timeout (in seconds): how long the consumer should wait for messages "
+            "between requests to the broker."
+        ),
+    )
+    PARSER.add_argument(
+        "--update_count",
+        "-u",
+        required=False,
+        type=int,
+        default=500,
+        help=(
+            "The number of messages processed after which the log output should be updated"
+        ),
+    )
     ARGS: Namespace = PARSER.parse_args()
 
     ST_LOG: logging.Logger = setup_single_logging(ARGS.debug)
@@ -195,25 +218,26 @@ if __name__ == "__main__":
         database=CONFIG["influx"]["database"],
     )
 
-    KAF_CON: Consumer = create_kafka_consumer(CONFIG, ST_LOG)
+    KAF_CON: Consumer = create_kafka_consumer(CONFIG, ST_LOG, ARGS.group_name)
 
     RETRY: bool = True
 
-    while RETRY:
-        try:
-            LOG.info("Processing messages from broker")
-            run(KAF_CON, INFLUX_CLIENT)
-        except RuntimeError:
-            LOG.error("Restarting kafka consumer")
-            RETRY = True
-            continue
-        except KeyboardInterrupt:
-            LOG.info("Keyboard interrupt signal receive. Closing connection")
-            KAF_CON.close()
-            INFLUX_CLIENT.close()
-            RETRY = False
-        except SystemExit:
-            LOG.info("System exit signal received. Closing connection")
-            KAF_CON.close()
-            INFLUX_CLIENT.close()
-            RETRY = False
+    try:
+        while RETRY:
+            try:
+                LOG.info("Processing messages from broker")
+                run(KAF_CON, INFLUX_CLIENT, ARGS.timeout, ARGS.update_count)
+            except RuntimeError:
+                LOG.error("Restarting kafka consumer")
+                RETRY = True
+                continue
+    except KeyboardInterrupt:
+        LOG.info("Keyboard interrupt signal receive. Closing connection")
+        KAF_CON.close()
+        INFLUX_CLIENT.close()
+        RETRY = False
+    except SystemExit:
+        LOG.info("System exit signal received. Closing connection")
+        KAF_CON.close()
+        INFLUX_CLIENT.close()
+        RETRY = False
