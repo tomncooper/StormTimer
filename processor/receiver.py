@@ -70,9 +70,14 @@ def process_payload(payload: str, kafka_ts_value: int) -> List[METRIC]:
     return [kafka_metric, e2e_metric]
 
 
-def run(kafka_consumer: Consumer, influx_client: InfluxDBClient) -> None:
+def run(
+    kafka_consumer: Consumer,
+    influx_client: InfluxDBClient,
+    num_messages: int = 100,
+    timeout_secs: int = 60,
+) -> None:
 
-    time_limit: dt.timedelta = dt.timedelta(minutes=1)
+    time_limit: dt.timedelta = dt.timedelta(seconds=timeout_secs)
     last_download: dt.datetime = dt.datetime.now()
 
     while True:
@@ -88,20 +93,22 @@ def run(kafka_consumer: Consumer, influx_client: InfluxDBClient) -> None:
             raise RuntimeError(delay_err)
 
         try:
-            msgs: List[Message] = kafka_consumer.consume(num_messages=100)
+            msgs: List[Message] = kafka_consumer.consume(
+                num_messages=100, timeout=timeout_secs
+            )
         except KafkaError as kafka_err:
             LOG.error(
                 "Attempting to consume from Kafka broker resulted in Kafka error: %s",
                 str(kafka_err),
             )
-            continue
+            raise RuntimeError(f"KafkaError received: {kafka_err}")
         except Exception as read_err:
             LOG.error(
                 "Consuming from Kafka broker resulted in error (%s): %s",
                 str(type(read_err)),
                 str(read_err),
             )
-            continue
+            raise RuntimeError(f"Error received: {read_err}")
         else:
             last_download = dt.datetime.now()
 
@@ -190,21 +197,23 @@ if __name__ == "__main__":
 
     KAF_CON: Consumer = create_kafka_consumer(CONFIG, ST_LOG)
 
-    try:
+    RETRY: bool = True
 
-        while True:
-            try:
-                LOG.info("Processing messages from broker")
-                run(KAF_CON, INFLUX_CLIENT)
-            except RuntimeError:
-                LOG.error("Restarting kafka consumer")
-                continue
-
-    except KeyboardInterrupt:
-        LOG.info("Keyboard interrupt signal receive. Closing connection")
-        KAF_CON.close()
-        INFLUX_CLIENT.close()
-    except SystemExit:
-        LOG.info("System exit signal received. Closing connection")
-        KAF_CON.close()
-        INFLUX_CLIENT.close()
+    while RETRY:
+        try:
+            LOG.info("Processing messages from broker")
+            run(KAF_CON, INFLUX_CLIENT)
+        except RuntimeError:
+            LOG.error("Restarting kafka consumer")
+            RETRY = True
+            continue
+        except KeyboardInterrupt:
+            LOG.info("Keyboard interrupt signal receive. Closing connection")
+            KAF_CON.close()
+            INFLUX_CLIENT.close()
+            RETRY = False
+        except SystemExit:
+            LOG.info("System exit signal received. Closing connection")
+            KAF_CON.close()
+            INFLUX_CLIENT.close()
+            RETRY = False
