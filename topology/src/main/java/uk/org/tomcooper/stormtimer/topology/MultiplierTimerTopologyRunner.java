@@ -46,7 +46,8 @@ public class MultiplierTimerTopologyRunner {
 
 		String pathBoltName = "MultiPathBolt";
 		builder.setBolt(pathBoltName,
-				new PathBoltMultiplier(multiplierMin, multiplierMax, multiplierMean, multiplierSTD), 2)
+				//new PathBoltMultiplier(multiplierMin, multiplierMax, multiplierMean, multiplierSTD), 2)
+				new SimplePathBoltMultiplier(multiplierMean), 2)
 				.setNumTasks(numTasks)
 				.shuffleGrouping(spoutName, spoutOutStreamName + "0");
 

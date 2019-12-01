@@ -28,13 +28,23 @@ public class PathBoltWindowedEmitOneRandom extends BaseWindowedBolt {
 	private transient ReducedMetric windowLatency;
 	private KeyGenerator keyGen;
 	private String outputStreamName;
+	private boolean createPathMsg;
+
+	public PathBoltWindowedEmitOneRandom(String outputStreamName, boolean createPathMsg) {
+		this.outputStreamName = outputStreamName;
+		this.createPathMsg = createPathMsg;
+	}
 
 	public PathBoltWindowedEmitOneRandom(String outputStreamName) {
-		this.outputStreamName = outputStreamName;
+	    this(outputStreamName, false);
+	}
+
+	public PathBoltWindowedEmitOneRandom(boolean createPathMsg) {
+		this("pathMessages", createPathMsg);
 	}
 
 	public PathBoltWindowedEmitOneRandom() {
-		this("pathMessages");
+		this("pathMessages", false);
 	}
 
 	@Override
@@ -66,13 +76,20 @@ public class PathBoltWindowedEmitOneRandom extends BaseWindowedBolt {
 		Map<String, List<PathMessage>> pathPathMessages = new HashMap<>();
 		Map<String, List<Long>> pathEntryTimestamps = new HashMap<>();
 
+		Gson gson = new Gson();
+
 		for (Tuple input : inputs) {
 
 			tracer.addTransfer(input, startTimeMs - input.getLongByField("timestamp"));
 
 			// Deserialise the path message so we can extract the spout information
-			Gson gson = new Gson();
-			PathMessage pathMsg = gson.fromJson(input.getStringByField("pathMessage"), PathMessage.class);
+			String pathMsgStr;
+			if (createPathMsg) {
+				pathMsgStr = PathMessageBuilder.createPathMessageStr(name, taskID, input);
+			} else {
+				pathMsgStr = input.getStringByField("pathMessage");
+			}
+			PathMessage pathMsg = gson.fromJson(pathMsgStr, PathMessage.class);
 
 			String path = pathMsg.getPath().toString();
 
@@ -102,7 +119,6 @@ public class PathBoltWindowedEmitOneRandom extends BaseWindowedBolt {
 		randomPathMessage.addPathElement(name + ":" + taskID);
 
 		// Serialise the new path message
-		Gson gson = new Gson();
 		String pathMessageStr = gson.toJson(randomPathMessage);
 
 		String key = keyGen.chooseKey();

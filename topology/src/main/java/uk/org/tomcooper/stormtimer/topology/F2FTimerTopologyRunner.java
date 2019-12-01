@@ -88,7 +88,7 @@ public class F2FTimerTopologyRunner {
 			cluster.shutdown();
 		} else if (args[0].equals("remote")) {
 
-			int numWorkers = 4;
+			int numWorkers = 8;
 
 			Config conf = BasicTimerTopologyRunner.createConf(false, numWorkers, numTasks, metricsBucketPeriod);
 

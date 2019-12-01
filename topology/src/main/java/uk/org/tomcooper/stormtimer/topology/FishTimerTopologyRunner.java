@@ -59,17 +59,17 @@ public class FishTimerTopologyRunner {
 		String pathMultiplierOutputStream = "Stream2";
 		builder.setBolt(pathMultiplierName,
 				new PathBoltMultiplier(pathMultiplierOutputStream, multiplierMin, 
-										multiplierMax, multiplierMean, multiplierSTD), 2)
-				.setNumTasks(numTasks).shuffleGrouping(spoutName, spoutOutStreamName + "1");
+						multiplierMax, multiplierMean, multiplierSTD), 2)
+				.setNumTasks(numTasks)
+				.shuffleGrouping(spoutName, spoutOutStreamName + "1");
 		
 	
 		String joinSplitName = "JoinSplitBolt";
 		String jsOutStream1 = "Stream3";
 		String jsOutStream2 = "Stream4";
-		boolean simple = true;
 		Duration joinWindowLength = new Duration(2, TimeUnit.SECONDS);
-		Count joinWindowCount = new Count(100);
-        BaseWindowedBolt joinSplit = new JoinSplitBolt(jsOutStream1, jsOutStream2, simple).withTumblingWindow(joinWindowCount);
+		Count joinWindowCount = new Count(20);
+        BaseWindowedBolt joinSplit = new JoinSplitBolt(jsOutStream1, jsOutStream2).withTumblingWindow(joinWindowCount);
 		builder.setBolt(joinSplitName, joinSplit, 2).setNumTasks(numTasks)
 				.shuffleGrouping(pathBoltName, pathBoltOutputStream)
 				.shuffleGrouping(pathMultiplierName, pathMultiplierOutputStream);

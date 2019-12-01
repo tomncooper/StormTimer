@@ -1,10 +1,6 @@
 package uk.org.tomcooper.stormtimer.topology;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 import org.apache.storm.metric.api.MeanReducer;
 import org.apache.storm.metric.api.ReducedMetric;
@@ -34,12 +30,10 @@ public class JoinSplitBolt extends BaseWindowedBolt {
 	private String outStream2Name;
 	private Random random;
 	private KeyGenerator keyGen;
-	private boolean simple;
-	
-	public JoinSplitBolt(String outStream1Name, String outStream2Name, boolean simple) {
+
+	public JoinSplitBolt(String outStream1Name, String outStream2Name) {
 		this.outStream1Name = outStream1Name;
 		this.outStream2Name = outStream2Name;
-		this.simple = simple;
 	}
 	
 	@Override
@@ -64,60 +58,73 @@ public class JoinSplitBolt extends BaseWindowedBolt {
 		cpuTimer.startTimer(Thread.currentThread().getId());
 		long startTimeMs = System.currentTimeMillis();
 		long startTime = System.nanoTime();
-		
+
 		List<Tuple> inputs = inputWindow.get();
 
-		String oldPathMessageStr = inputs.get(random.nextInt(inputs.size())).getStringByField("pathMessage");	
+		Map<String, Map<String, List<PathMessage>>> streamMsgs = new HashMap<String, Map<String,List<PathMessage>>>();
 
-		long nanoTotal = 0;
-		long milliTotal = 0;
-		
-		Map<String, Integer> streamCounts = new HashMap<String, Integer>();
+		Gson gson = new Gson();
 
+		// Sort the window path messages into streams
 		for(Tuple input: inputs) {
 
 			tracer.addTransfer(input, startTimeMs - input.getLongByField("timestamp"));
-			
-			long entryMilliTimestamp = input.getLongByField("entryMilliTimestamp");
-			
-			milliTotal += entryMilliTimestamp;
-			
+
+			// Deserialise the path message
+			PathMessage pathMsg = gson.fromJson(input.getStringByField("pathMessage"), PathMessage.class);
+
 			String inputStream = input.getSourceStreamId();
-		    
-			if(streamCounts.containsKey(inputStream)){
-				streamCounts.put(inputStream, (streamCounts.get(inputStream) + 1));
+
+			Map<String, List<PathMessage>> pathMsgsMap;
+			if(streamMsgs.containsKey(inputStream)){
+				pathMsgsMap = streamMsgs.get(inputStream);
 			} else {
-				streamCounts.put(inputStream, 1);
+				pathMsgsMap = new HashMap<>();
 			}
-			
-			
-		}
-		
-		long avgMilliTimestamp = milliTotal / inputs.size();
-		
-        // Add the current task to the path within the path message
-		Gson gson = new Gson();
-		PathMessage pathMsg = gson.fromJson(oldPathMessageStr, PathMessage.class);
-		String newPathElement = name + ":" + taskID;
-		pathMsg.addPathElement(newPathElement);		
-		String newPathMessageStr = gson.toJson(pathMsg);	
 
-		String key = keyGen.chooseKey();
-		Values outputTuple = new Values(System.currentTimeMillis(), key, avgMilliTimestamp, newPathMessageStr);
-
-		if(simple) {
-			collector.emit(outStream1Name, outputTuple);			
-			collector.emit(outStream2Name, outputTuple);			
-		} else {
-			String outStream;
-			if(allEvenOrOdd(streamCounts)) {
-				outStream = outStream1Name;
-			} else {			
-				outStream = outStream2Name;
+			String pathStr = String.join(" ", pathMsg.getPath());
+			List<PathMessage> pathMsgsList;
+			if (pathMsgsMap.containsKey(pathStr)){
+				pathMsgsList = pathMsgsMap.get(pathStr);
+			} else {
+				pathMsgsList = new ArrayList<>();
 			}
-			collector.emit(outStream, outputTuple);
+			pathMsgsList.add(pathMsg);
+			pathMsgsMap.put(pathStr, pathMsgsList);
+			streamMsgs.put(inputStream, pathMsgsMap);
 		}
-		
+
+
+		for(String streamID : streamMsgs.keySet()){
+			// Now we create an output tuple by choosing a path at random
+			List<String> pathKeys = new ArrayList<String>(streamMsgs.get(streamID).keySet());
+			String randomPathKey = pathKeys.get(random.nextInt(pathKeys.size()));
+
+			List<PathMessage>  chosenPathList = streamMsgs.get(streamID).get(randomPathKey);
+			long totalTs = 0;
+			for (PathMessage pMsg: chosenPathList ){
+				totalTs += pMsg.getOriginTimestamp();
+			}
+			long avgEntryTs = totalTs / chosenPathList.size();
+
+			// Choose a path message at random from all those that followed the chosen path
+			PathMessage chosenPathMsg = chosenPathList.get(random.nextInt(chosenPathList.size()));
+
+			// Add the current task to the path within the path message
+			String newPathElement = name + ":" + taskID;
+			chosenPathMsg.addPathElement(newPathElement);
+
+			// Set the entry timestamp to the new value
+			chosenPathMsg.setOriginTimestamp(avgEntryTs);
+			String newPathMessageStr = gson.toJson(chosenPathMsg);
+
+			String key = keyGen.chooseKey();
+			Values outputTuple = new Values(System.currentTimeMillis(), key, avgEntryTs, newPathMessageStr);
+
+			collector.emit(outStream1Name, outputTuple);
+			collector.emit(outStream2Name, outputTuple);
+		}
+
 		// Update the window execute latency
         double winExLatencyMs = (System.nanoTime()- startTime) / 1000000.0;
 		windowLatency.update(winExLatencyMs);

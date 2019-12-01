@@ -44,7 +44,7 @@ public class WindowedTimerTopologyRunner {
 				.setNumTasks(numTasks);
 
 		String pathBoltName = "WindowedPathBolt";
-		builder.setBolt(pathBoltName, new PathBoltWindowedEmitBySpout().withTumblingWindow(windowCount), 2).setNumTasks(numTasks)
+		builder.setBolt(pathBoltName, new PathBoltWindowedEmitOneRandom(true).withTumblingWindow(windowCount), 2).setNumTasks(numTasks)
 				.shuffleGrouping(spoutName, spoutOutStreamName + "0");
 
 		String senderBoltName = "SenderBolt";
